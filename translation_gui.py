@@ -1041,7 +1041,9 @@ class TranslationApp:
                 
                 time.sleep(0.1)
             
-            # 完成翻译
+            # 完成翻译，执行智能缩写
+            self.log("执行智能缩写...")
+            self.abbreviate_translations()
             self.save_translation_table()
             self.root.after(0, lambda: self._update_progress(100, total_needed))
             self.log("翻译完成！")
@@ -1051,6 +1053,88 @@ class TranslationApp:
         
         # 启动翻译线程
         threading.Thread(target=translate_thread, daemon=True).start()
+    
+    def abbreviate_translations(self):
+        """
+        智能缩写翻译结果，根据不同语言的特点进行缩写
+        """
+        max_lengths = {
+            'default': 40,
+            'CHT': 30, 'CHS': 30, 'ZHH': 30, 'ZHI': 30, 'ZHM': 30,
+            'JPN': 25, 'KOR': 25,
+            'ARA': 45, 'GER': 45, 'DES': 45, 'DEA': 45, 'DEL': 45, 'DEC': 45,
+        }
+        
+        def abbreviate_text(text, lang_code, max_len):
+            if len(text) <= max_len:
+                return text
+            
+            if lang_code in ['CHT', 'CHS', 'ZHH', 'ZHI', 'ZHM']:
+                keywords = []
+                chars = list(text)
+                for char in chars:
+                    if char in ['的', '是', '在', '和', '与', '及', '了', '有', '我', '你', '他', '她', '它']:
+                        continue
+                    keywords.append(char)
+                    if len(''.join(keywords)) >= max_len - 3:
+                        break
+                return ''.join(keywords)[:max_len-3] + '...'
+            
+            elif lang_code in ['JPN', 'KOR']:
+                return text[:max_len-3] + '...'
+            
+            elif lang_code in ['ARA']:
+                return text[:max_len-3] + '...'
+            
+            elif lang_code in ['GER', 'DES', 'DEA', 'DEL', 'DEC']:
+                import re
+                parts = re.split(r'[^a-zA-ZäöüÄÖÜß]', text)
+                abbreviated = []
+                for part in parts:
+                    if len(part) > 8:
+                        abbreviated.append(part[:5] + '.')
+                    elif part:
+                        abbreviated.append(part)
+                result = ' '.join(abbreviated)
+                return result[:max_len-3] + '...' if len(result) > max_len else result
+            
+            else:
+                words = text.split()
+                if len(words) <= 3:
+                    return text
+                
+                abbreviated = []
+                stop_words = ['and', 'or', 'the', 'a', 'an', 'is', 'are', 'be', 'to', 'of', 'for', 'in', 'on', 'at', 'with',
+                              'et', 'ou', 'le', 'la', 'les', 'un', 'une', 'des', 'est', 'sont',
+                              'y', 'o', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'es', 'son']
+                
+                for i, word in enumerate(words):
+                    if i == 0:
+                        abbreviated.append(word)
+                    elif word.lower() in stop_words:
+                        continue
+                    elif len(word) > 6:
+                        abbreviated.append(word[:4] + '.')
+                    else:
+                        abbreviated.append(word)
+                    
+                    if len(' '.join(abbreviated)) > max_len:
+                        break
+                
+                result = ' '.join(abbreviated)
+                return result[:max_len-3] + '...' if len(result) > max_len else result
+        
+        abbreviated_count = 0
+        for text in self.translation_table.keys():
+            for lang in self.selected_langs:
+                if lang in self.translation_table[text] and self.translation_table[text][lang]:
+                    max_len = max_lengths.get(lang, max_lengths['default'])
+                    original = self.translation_table[text][lang]
+                    if len(original) > max_len:
+                        self.translation_table[text][lang] = abbreviate_text(original, lang, max_len)
+                        abbreviated_count += 1
+        
+        self.log(f"智能缩写完成，共缩写 {abbreviated_count} 条翻译")
     
     def _update_progress(self, progress, count):
         """
