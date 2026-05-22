@@ -19,6 +19,7 @@ import time
 import threading
 import hashlib
 import uuid
+from openpyxl import Workbook, load_workbook
 
 # 语言映射字典 - 包含语言代码、名称和中文说明
 # 格式: {'语言缩写': {'code': 'Google翻译代码', 'name': '语言名称 (中文语言:中文国家)'}}
@@ -354,6 +355,10 @@ class TranslationApp:
         self.confirm_btn.pack(side=tk.LEFT, padx=10)
         
         ttk.Button(button_frame, text="查看翻译表", command=self.view_translation_table).pack(side=tk.LEFT, padx=10)
+        
+        ttk.Button(button_frame, text="导出Excel", command=self.export_to_excel).pack(side=tk.LEFT, padx=10)
+        
+        ttk.Button(button_frame, text="导入Excel", command=self.import_from_excel).pack(side=tk.LEFT, padx=10)
         
         ttk.Button(button_frame, text="导出日志", command=self.export_log).pack(side=tk.LEFT, padx=10)
         
@@ -1240,6 +1245,131 @@ class TranslationApp:
         with open(log_path, 'w', encoding='utf-8') as f:
             f.write(log_content)
         messagebox.showinfo("提示", f"日志已导出到: {log_path}")
+    
+    def export_to_excel(self):
+        """
+        导出翻译表到Excel文件
+        方便人工翻译和编辑
+        """
+        if not self.translation_table:
+            messagebox.showwarning("警告", "翻译表为空，请先进行翻译")
+            return
+        
+        # 动态获取当前勾选的语言
+        current_selected_langs = [lang for lang, var in self.lang_vars.items() if var.get()]
+        if not current_selected_langs:
+            messagebox.showwarning("警告", "请先选择目标语言")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            title="导出Excel文件",
+            defaultextension=".xlsx",
+            filetypes=[("Excel文件", "*.xlsx")]
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "翻译表"
+            
+            # 表头：原文 + 各语言（显示语言缩写和名称）
+            headers = ["原文"]
+            for lang in current_selected_langs:
+                lang_name = LANG_MAP.get(lang, {}).get('name', lang)
+                headers.append(f"{lang} - {lang_name}")
+            ws.append(headers)
+            
+            # 填充数据
+            for original_text, translations in self.translation_table.items():
+                row = [original_text]
+                for lang in current_selected_langs:
+                    row.append(translations.get(lang, ''))
+                ws.append(row)
+            
+            # 自动调整列宽
+            for col in ws.columns:
+                max_length = 0
+                column = col[0].column_letter
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                ws.column_dimensions[column].width = adjusted_width
+            
+            wb.save(file_path)
+            self.log(f"翻译表已导出到Excel: {file_path}")
+            messagebox.showinfo("完成", f"翻译表已成功导出到:\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("错误", f"导出Excel失败: {str(e)}")
+    
+    def import_from_excel(self):
+        """
+        从Excel文件导入翻译结果
+        支持人工编辑后重新导入
+        """
+        file_path = filedialog.askopenfilename(
+            title="选择Excel文件",
+            filetypes=[("Excel文件", "*.xlsx")]
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            wb = load_workbook(file_path)
+            ws = wb.active
+            
+            # 获取表头
+            headers = []
+            for cell in ws[1]:
+                headers.append(cell.value)
+            
+            if headers[0] != "原文":
+                messagebox.showwarning("警告", "Excel文件格式不正确，第一列必须是'原文'")
+                return
+            
+            # 获取语言列表（解析列标题，提取语言缩写）
+            import_langs = []
+            for header in headers[1:]:
+                if header:
+                    # 解析格式: "语言缩写 - 语言名称"
+                    parts = str(header).split(' - ', 1)
+                    lang_code = parts[0].strip() if parts else str(header).strip()
+                    import_langs.append(lang_code)
+            
+            # 导入数据
+            updated_count = 0
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not row or not row[0]:
+                    continue
+                
+                original_text = row[0]
+                
+                # 创建或更新翻译表条目
+                if original_text not in self.translation_table:
+                    self.translation_table[original_text] = {}
+                
+                # 更新各语言翻译
+                for i, lang in enumerate(import_langs):
+                    if i + 1 < len(row) and row[i + 1]:
+                        old_value = self.translation_table[original_text].get(lang, '')
+                        if old_value != row[i + 1]:
+                            self.translation_table[original_text][lang] = row[i + 1]
+                            updated_count += 1
+            
+            # 保存翻译表
+            self.save_translation_table()
+            
+            self.log(f"从Excel导入完成，共更新 {updated_count} 条翻译")
+            messagebox.showinfo("完成", f"成功导入 {updated_count} 条翻译")
+        except Exception as e:
+            messagebox.showerror("错误", f"导入Excel失败: {str(e)}")
 
 
 if __name__ == '__main__':
