@@ -350,6 +350,11 @@ class TranslationApp:
         self.start_btn = ttk.Button(button_frame, text="开始翻译", command=self.start_translation)
         self.start_btn.pack(side=tk.LEFT, padx=10)
         
+        # 打包选项
+        self.pack_var = tk.BooleanVar()
+        self.pack_check = ttk.Checkbutton(button_frame, text="生成后打包为.res", variable=self.pack_var)
+        self.pack_check.pack(side=tk.LEFT, padx=5)
+        
         self.confirm_btn = ttk.Button(button_frame, text="确认翻译并生成XML", 
                                      command=self.confirm_and_generate, state='disabled')
         self.confirm_btn.pack(side=tk.LEFT, padx=10)
@@ -383,6 +388,7 @@ class TranslationApp:
         """
         选择输入源（文件夹或文件）
         根据当前输入模式执行不同操作，自动设置输出目录为输入源的上一级目录
+        支持XML文件和RES文件（自动解压）
         """
         if self.input_mode_var.get() == 'folder':
             folder = filedialog.askdirectory(title="选择输入文件夹")
@@ -395,7 +401,7 @@ class TranslationApp:
                 self.log(f"输出目录已设置为: {self.output_dir}")
                 self.refresh_file_list()
         else:
-            files = filedialog.askopenfilenames(title="选择XML文件", filetypes=[("XML文件", "*.xml")])
+            files = filedialog.askopenfilenames(title="选择XML或RES文件", filetypes=[("XML文件", "*.xml"), ("RES文件", "*.res"), ("所有文件", "*.*")])
             if files:
                 # 设置输出目录为第一个文件所在目录的上一级目录
                 first_file_dir = os.path.dirname(files[0])
@@ -409,25 +415,25 @@ class TranslationApp:
     def refresh_file_list(self):
         """
         刷新文件列表
-        扫描源文件夹中的所有XML文件
+        扫描源文件夹中的所有XML和RES文件
         """
         self.source_files = []
         self.file_listbox.delete(0, tk.END)
         if self.source_folder and os.path.isdir(self.source_folder):
             for root_dir, dirs, files in os.walk(self.source_folder):
                 for file in files:
-                    if file.endswith('.xml'):
+                    if file.endswith('.xml') or file.endswith('.res'):
                         file_path = os.path.join(root_dir, file)
                         self.source_files.append(file_path)
                         self.file_listbox.insert(tk.END, file_path)
-            self.log(f"已扫描到 {len(self.source_files)} 个XML文件")
+            self.log(f"已扫描到 {len(self.source_files)} 个文件（XML和RES）")
     
     def add_files(self):
         """
         添加文件到列表
-        通过文件对话框选择多个XML文件，自动设置输出目录为第一个文件所在目录的上一级目录
+        通过文件对话框选择多个XML或RES文件，自动设置输出目录为第一个文件所在目录的上一级目录
         """
-        files = filedialog.askopenfilenames(title="选择XML文件", filetypes=[("XML文件", "*.xml")])
+        files = filedialog.askopenfilenames(title="选择XML或RES文件", filetypes=[("XML文件", "*.xml"), ("RES文件", "*.res"), ("所有文件", "*.*")])
         if files and not self.source_files:
             # 如果是第一次添加文件，设置输出目录为第一个文件所在目录的上一级目录
             first_file_dir = os.path.dirname(files[0])
@@ -686,15 +692,27 @@ class TranslationApp:
     
     def extract_chinese_texts(self):
         """
-        从XML文件中提取中文文本
+        从XML或RES文件中提取中文文本
+        RES文件会自动使用GZIP格式解压
         :return: 中文文本集合
         """
         all_texts = set()
         
-        for xml_file in self.source_files:
+        for source_file in self.source_files:
             try:
-                with open(xml_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                # 判断是否为RES文件
+                if source_file.endswith('.res'):
+                    # RES文件需要先解压
+                    content = self.decompress_res(source_file)
+                    if content is None:
+                        self.log(f"解压 {os.path.basename(source_file)} 失败")
+                        continue
+                    self.log(f"已解压 RES 文件: {os.path.basename(source_file)}")
+                else:
+                    # XML文件直接读取
+                    with open(source_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                
                 parser = ET.XMLParser(encoding='utf-8')
                 root = ET.fromstring(content, parser=parser)
                 
@@ -702,9 +720,9 @@ class TranslationApp:
                     text = elem.get('Content', '')
                     if text and self.is_chinese(text):
                         all_texts.add(text)
-                self.log(f"从 {os.path.basename(xml_file)} 提取到中文文本")
+                self.log(f"从 {os.path.basename(source_file)} 提取到中文文本")
             except Exception as e:
-                self.log(f"解析 {xml_file} 失败: {e}")
+                self.log(f"解析 {source_file} 失败: {e}")
         
         # 将新文本添加到翻译表
         for text in all_texts:
@@ -713,6 +731,29 @@ class TranslationApp:
         
         self.save_translation_table()
         return all_texts
+    
+    def decompress_res(self, res_file_path):
+        """
+        解压RES文件（GZIP格式）
+        :param res_file_path: RES文件路径
+        :return: 解压后的内容（字符串），失败返回None
+        """
+        try:
+            with open(res_file_path, 'rb') as f:
+                data = f.read()
+            
+            # 检查是否为GZIP格式
+            if len(data) < 10 or data[:2] != b'\x1f\x8b':
+                self.log(f"警告: {os.path.basename(res_file_path)} 不是有效的GZIP文件")
+                return None
+            
+            import zlib
+            # 跳过GZIP头（10字节），解压数据
+            decompressed = zlib.decompress(data[10:-8], -15)
+            return decompressed.decode('utf-8')
+        except Exception as e:
+            self.log(f"解压错误: {e}")
+            return None
     
     def is_chinese(self, text):
         """
@@ -1219,12 +1260,52 @@ class TranslationApp:
                         f.write('\n'.join(lines))
                     
                     self.log(f"生成: {output_path}")
+                    
+                    # 如果勾选了打包选项，将XML文件打包为.res
+                    if self.pack_var.get():
+                        self.pack_to_res(output_path)
             
             except Exception as e:
                 self.log(f"生成XML失败: {e}")
         
         self.log("所有XML文件已生成完成！")
-        messagebox.showinfo("完成", "XML文件已成功生成！")
+        if self.pack_var.get():
+            messagebox.showinfo("完成", "XML文件已成功生成并打包为.res文件！")
+        else:
+            messagebox.showinfo("完成", "XML文件已成功生成！")
+    
+    def pack_to_res(self, xml_file_path):
+        """
+        将XML文件打包为GZIP格式的.res文件
+        """
+        try:
+            with open(xml_file_path, 'rb') as f_in:
+                content = f_in.read()
+            
+            import zlib
+            crc = zlib.crc32(content) & 0xffffffff
+            compressed = zlib.compress(content, 9)
+            
+            # 构造GZIP文件头（确保FLG=0x00）
+            gzip_header = b'\x1f\x8b\x08\x00'  # ID1, ID2, CM, FLG
+            gzip_header += b'\x00\x00\x00\x00'  # MTIME (0)
+            gzip_header += b'\x00'              # XFL (0)
+            gzip_header += b'\xff'              # OS (255 = unknown)
+            
+            # 生成.res文件路径（替换.xml扩展名）
+            res_path = xml_file_path.replace('.xml', '.res')
+            
+            # 写入文件
+            with open(res_path, 'wb') as f_out:
+                f_out.write(gzip_header)
+                f_out.write(compressed[2:-4])  # 移除zlib头和adler32
+                # 添加GZIP尾部（CRC32和原始大小）
+                f_out.write(crc.to_bytes(4, 'little'))
+                f_out.write(len(content).to_bytes(4, 'little'))
+            
+            self.log(f"打包: {res_path}")
+        except Exception as e:
+            self.log(f"打包失败: {e}")
     
     def view_translation_table(self):
         """
