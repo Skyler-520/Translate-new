@@ -404,7 +404,7 @@ class TranslationApp:
         
         content_area = ttk.Frame(main_content, style='TFrame')
         content_area.grid(row=1, column=0, sticky='nsew')
-        content_area.grid_columnconfigure(0, weight=1)
+        content_area.grid_columnconfigure(0, weight=3)
         content_area.grid_columnconfigure(1, weight=1)
         content_area.grid_rowconfigure(1, weight=1)
         
@@ -547,7 +547,7 @@ class TranslationApp:
         self.log_text.insert(tk.END, "欢迎使用 Translate Pro！\n")
         self.log_text.insert(tk.END, "请添加输入源文件并选择目标语言，然后点击「开始翻译」。\n")
         
-        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=220)
+        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=180)
         stats_panel.grid(row=0, column=2, sticky='ns', padx=(0, 16), pady=16)
         stats_panel.grid_propagate(False)
         
