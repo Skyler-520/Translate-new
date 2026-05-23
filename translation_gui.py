@@ -383,17 +383,6 @@ class TranslationApp:
         action_frame = ttk.Frame(header_frame, style='TFrame')
         action_frame.grid(row=0, column=2, rowspan=2, sticky='e')
         
-        api_top = ttk.Frame(action_frame, style='TFrame')
-        api_top.pack(side='left', padx=(0, 12))
-        
-        ttk.Label(api_top, text="API:", font=('Segoe UI', 9)).pack(side='left')
-        self.api_type_var = tk.StringVar(value=self.api_type)
-        api_combo = ttk.Combobox(api_top, textvariable=self.api_type_var, values=['google', 'baidu'],
-                                 state='readonly', width=7, font=('Segoe UI', 9))
-        api_combo.pack(side='left', padx=4)
-        api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
-        ttk.Button(api_top, text="配置", command=self.configure_api).pack(side='left')
-        
         self.start_btn = ttk.Button(action_frame, text="▶ 开始翻译", command=self.start_translation, style='Accent.TButton')
         self.start_btn.pack(side='left', padx=4)
         
@@ -453,29 +442,15 @@ class TranslationApp:
                        command=self.toggle_lang_display).pack(side='left', padx=4)
         ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=4)
         
-        search_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
-        search_frame.pack(side='left', padx=(12, 0), fill='x', expand=True)
-        
-        self.lang_search_var = tk.StringVar()
-        self.lang_search_entry = ttk.Entry(search_frame, textvariable=self.lang_search_var,
-                                            font=('Segoe UI', 9), width=18)
-        self.lang_search_entry.pack(side='left', fill='x', expand=True, ipady=3)
-        self.lang_search_entry.insert(0, "🔍 搜索语言...")
-        self.lang_search_var.trace_add('write', lambda *a: self.on_lang_search())
-        
-        def on_search_focus_in(e):
-            if self.lang_search_entry.get() == "🔍 搜索语言...":
-                self.lang_search_entry.delete(0, tk.END)
-                self.lang_search_entry.configure(foreground='#2D2B4E')
-        
-        def on_search_focus_out(e):
-            if not self.lang_search_var.get().strip():
-                self.lang_search_entry.insert(0, "🔍 搜索语言...")
-                self.lang_search_entry.configure(foreground='#8E8EA0')
-        
-        self.lang_search_entry.bind('<FocusIn>', on_search_focus_in)
-        self.lang_search_entry.bind('<FocusOut>', on_search_focus_out)
-        self.lang_search_entry.configure(foreground='#8E8EA0')
+        api_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
+        api_frame.pack(side='left', padx=12)
+        ttk.Label(api_frame, text="API:", font=('Segoe UI', 9)).pack(side='left')
+        self.api_type_var = tk.StringVar(value=self.api_type)
+        api_combo = ttk.Combobox(api_frame, textvariable=self.api_type_var, values=['google', 'baidu'],
+                                 state='readonly', width=7, font=('Segoe UI', 9))
+        api_combo.pack(side='left', padx=4)
+        api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
+        ttk.Button(api_frame, text="配置", command=self.configure_api).pack(side='left')
         
         btn_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
         btn_frame.pack(side='right')
@@ -831,23 +806,6 @@ class TranslationApp:
             total = len(self.translation_table)
             self.stats_refs['shared'].configure(text=str(total))
     
-    def on_lang_search(self):
-        keyword = self.lang_search_var.get().strip().lower()
-        if not keyword or keyword == "🔍 搜索语言...":
-            for widget in self.lang_frame.winfo_children():
-                widget.grid()
-            return
-        for widget in self.lang_frame.winfo_children():
-            text = ""
-            for child in widget.winfo_children():
-                if isinstance(child, ttk.Checkbutton):
-                    text = child.cget('text').lower()
-                    break
-            if keyword in text:
-                widget.grid()
-            else:
-                widget.grid_remove()
-    
     def select_all_langs(self):
         """
         全选所有语言
@@ -863,124 +821,145 @@ class TranslationApp:
             var.set(False)
     
     def set_default_langs(self):
-        """
-        设置默认语言列表
-        创建独立窗口让用户选择默认语言（最多20个），支持搜索过滤和勾选框
-        """
-        # 创建顶层窗口
         top = tk.Toplevel(self.root)
         top.title("设置默认语言")
-        top.geometry("700x600")
+        top.geometry("680x650")
+        top.configure(bg='#F5F6FA')
         top.transient(self.root)
         top.grab_set()
         
-        # 主框架
-        main_frame = ttk.Frame(top, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        dlg_style = ttk.Style()
+        if 'Dialog.TFrame' not in dlg_style.theme_names():
+            dlg_style.configure('Dialog.TFrame', background='#F5F6FA')
+            dlg_style.configure('DialogCard.TFrame', background='white')
+            dlg_style.configure('DialogTitle.TLabel', background='#F5F6FA', foreground='#2D2B4E',
+                                font=('Segoe UI', 16, 'bold'))
+            dlg_style.configure('DialogSub.TLabel', background='#F5F6FA', foreground='#8E8EA0',
+                                font=('Segoe UI', 10))
+            dlg_style.configure('Search.TEntry', font=('Segoe UI', 10), padding=8)
+            dlg_style.configure('Status.TLabel', background='#F5F6FA', foreground='#6C63FF',
+                                font=('Segoe UI', 10, 'bold'))
+            dlg_style.configure('LangItem.TCheckbutton', background='white', font=('Segoe UI', 9),
+                                padding=4)
+            dlg_style.configure('Accent.TButton', font=('Segoe UI', 10, 'bold'), padding=10)
+            dlg_style.configure('TButton', font=('Segoe UI', 9), padding=6)
         
-        # 说明标签
-        ttk.Label(main_frame, text="请勾选最多20种默认语言:", 
-                  font=('Arial', 10, 'bold')).pack(anchor=tk.W, pady=5)
+        main = ttk.Frame(top, style='Dialog.TFrame', padding=24)
+        main.pack(fill=tk.BOTH, expand=True)
         
-        # 搜索框
-        search_frame = ttk.Frame(main_frame)
-        search_frame.pack(fill=tk.X, pady=5)
+        title_frame = ttk.Frame(main, style='Dialog.TFrame')
+        title_frame.pack(fill=tk.X, pady=(0, 20))
+        ttk.Label(title_frame, text="设置默认语言", style='DialogTitle.TLabel').pack(anchor='w')
+        ttk.Label(title_frame, text="选择最多 20 种常用语言，用于快速开始翻译任务", 
+                  style='DialogSub.TLabel').pack(anchor='w', pady=(4, 0))
         
-        ttk.Label(search_frame, text="搜索（输入国家中文名称）:").pack(side=tk.LEFT, padx=5)
+        search_card = ttk.Frame(main, style='DialogCard.TFrame', padding=12)
+        search_card.pack(fill=tk.X, pady=(0, 12))
+        
+        search_row = ttk.Frame(search_card, style='DialogCard.TFrame')
+        search_row.pack(fill=tk.X)
+        
+        ttk.Label(search_row, text="🔍", font=('Segoe UI', 14), background='white').pack(side='left')
         search_var = tk.StringVar()
-        search_entry = ttk.Entry(search_frame, textvariable=search_var, width=50)
-        search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        search_entry = ttk.Entry(search_row, textvariable=search_var, width=40, style='Search.TEntry')
+        search_entry.pack(side='left', padx=(8, 0), fill=tk.X, expand=True)
         search_entry.focus_set()
         
-        # 创建带滚动条的Canvas
-        canvas_frame = ttk.Frame(main_frame)
-        canvas_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        list_card = ttk.Frame(main, style='DialogCard.TFrame', padding=16)
+        list_card.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
         
-        canvas = tk.Canvas(canvas_frame, highlightthickness=0)
+        canvas_frame = ttk.Frame(list_card, style='DialogCard.TFrame')
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        
+        canvas = tk.Canvas(canvas_frame, bg='white', highlightthickness=0)
         scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        scrollable = ttk.Frame(canvas, style='DialogCard.TFrame')
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        scrollable.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scrollable, anchor="nw", width=600)
         canvas.configure(yscrollcommand=scrollbar.set)
         
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
         
-        # 保存所有语言数据和勾选框变量
         all_langs = [(code, info) for code, info in sorted(LANG_MAP.items())]
-        lang_check_vars = {}  # 语言代码 -> BooleanVar
-        lang_check_frames = {}  # 语言代码 -> Frame
+        lang_vars = {}
+        lang_frames = {}
         
-        # 状态标签
-        status_label = ttk.Label(main_frame, text=f"已选择 {len(self.default_langs)}/20 种语言")
-        status_label.pack(anchor=tk.W, pady=5)
+        status_bar = ttk.Frame(main, style='Dialog.TFrame')
+        status_bar.pack(fill=tk.X, pady=(0, 16))
+        status_label = ttk.Label(status_bar, text=f"已选择 {len(self.default_langs)}/20 种语言",
+                                 style='Status.TLabel')
+        status_label.pack(side='left')
         
-        # 更新状态标签
         def update_status():
-            count = sum(1 for var in lang_check_vars.values() if var.get())
-            status_label.config(text=f"已选择 {count}/20 种语言")
+            c = sum(1 for v in lang_vars.values() if v.get())
+            status_label.config(text=f"已选择 {c}/20 种语言")
         
-        # 检查并限制最多20个
-        def on_check(lang_code):
-            var = lang_check_vars[lang_code]
-            if var.get():
-                count = sum(1 for v in lang_check_vars.values() if v.get())
-                if count > 20:
-                    var.set(False)
-                    messagebox.showwarning("警告", "最多只能选择20种语言")
+        def on_check(code):
+            v = lang_vars[code]
+            if v.get() and sum(1 for x in lang_vars.values() if x.get()) > 20:
+                v.set(False)
+                messagebox.showwarning("提示", "最多只能选择 20 种语言", parent=top)
             update_status()
         
-        # 创建语言勾选框
-        for lang_code, lang_info in all_langs:
-            var = tk.BooleanVar(value=lang_code in self.default_langs)
-            lang_check_vars[lang_code] = var
+        for i, (code, info) in enumerate(all_langs):
+            var = tk.BooleanVar(value=code in self.default_langs)
+            lang_vars[code] = var
             
-            frame = ttk.Frame(scrollable_frame)
-            frame.pack(fill=tk.X, pady=1)
-            lang_check_frames[lang_code] = frame
+            item = ttk.Frame(scrollable, style='DialogCard.TFrame')
+            item.pack(fill=tk.X, pady=2, padx=4)
             
-            chk = ttk.Checkbutton(frame, text=f"{lang_code} - {lang_info['name']}", 
-                                  variable=var, command=lambda lc=lang_code: on_check(lc))
-            chk.pack(anchor=tk.W, padx=5)
+            hover_bg = '#F0EEFF'
+            normal_bg = 'white'
+            
+            def on_enter(e, frm=item):
+                try: frm.configure(style='Hover.TFrame')
+                except: pass
+            def on_leave(e, frm=item):
+                try: frm.configure(style='DialogCard.TFrame')
+                except: pass
+            
+            item.bind('<Enter>', on_enter)
+            item.bind('<Leave>', on_leave)
+            
+            chk = ttk.Checkbutton(item, text=f"{code}  {info['name']}", variable=var,
+                                   style='LangItem.TCheckbutton',
+                                   command=lambda c=code: on_check(c))
+            chk.pack(anchor='w', padx=8, pady=6)
+            lang_frames[code] = item
         
-        # 搜索过滤功能
         def on_search(*args):
-            filter_text = search_var.get().lower()
-            for lang_code, frame in lang_check_frames.items():
-                lang_info = LANG_MAP[lang_code]
-                if filter_text:
-                    if filter_text in lang_info['name'].lower():
-                        frame.pack(fill=tk.X, pady=1)
-                    else:
-                        frame.pack_forget()
+            txt = search_var.get().lower().strip()
+            for code, frm in lang_frames.items():
+                info = LANG_MAP[code]
+                if txt and txt not in info['name'].lower() and txt not in code.lower():
+                    frm.pack_forget()
                 else:
-                    frame.pack(fill=tk.X, pady=1)
+                    frm.pack(fill=tk.X, pady=2, padx=4)
         
         search_var.trace('w', on_search)
         
-        # 操作按钮框架
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=10)
+        btn_bar = ttk.Frame(main, style='Dialog.TFrame')
+        btn_bar.pack(fill=tk.X)
         
-        # 取消全选按钮
         def deselect_all():
-            for var in lang_check_vars.values():
-                var.set(False)
+            for v in lang_vars.values(): v.set(False)
             update_status()
         
-        ttk.Button(button_frame, text="取消全选", command=deselect_all).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="确定", 
-                   command=lambda: self._confirm_default_langs_from_vars(top, lang_check_vars)).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(button_frame, text="取消", command=top.destroy).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_bar, text="取消全选", command=deselect_all).pack(side='left')
+        ttk.Separator(btn_bar, orient='vertical').pack(side='left', fill='y', padx=12, pady=4)
         
-        # 鼠标滚轮滚动
-        def on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        btn_frame_right = ttk.Frame(btn_bar, style='Dialog.TFrame')
+        btn_frame_right.pack(side='right')
+        
+        ttk.Button(btn_frame_right, text="取消", command=top.destroy).pack(side='right', padx=4)
+        ok_btn = ttk.Button(btn_frame_right, text="确定保存",
+                              command=lambda: self._confirm_default_langs_from_vars(top, lang_vars),
+                              style='Accent.TButton')
+        ok_btn.pack(side='right', padx=4)
+        
+        def on_mousewheel(e): canvas.yview_scroll(int(-1*(e.delta/120)), "units")
         canvas.bind_all("<MouseWheel>", on_mousewheel)
         
         def on_close():
