@@ -1323,7 +1323,7 @@ class TranslationApp:
         智能缩写翻译结果，根据不同语言的特点进行缩写
         """
         max_lengths = {
-            'default': 40,
+            'default': 200,
             'CHT': 30, 'CHS': 30, 'ZHH': 30, 'ZHI': 30, 'ZHM': 30,
             'JPN': 25, 'KOR': 25,
             'ARA': 45, 'GER': 45, 'DES': 45, 'DEA': 45, 'DEL': 45, 'DEC': 45,
@@ -1524,7 +1524,7 @@ class TranslationApp:
 
                         content_val = content_val.replace('\n', '&#xA;')
                         content_val = content_val.replace('"', '&quot;')
-                        lines.append(f'\t<Message ID="{msg_id}" Content="{content_val}" />')
+                        lines.append(f'  <Message ID="{msg_id}" Content="{content_val}" />')
 
                     lines.append('</ResMap>')
 
