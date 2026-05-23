@@ -897,11 +897,13 @@ class TranslationApp:
                             # 尝试双引号
                             m1 = re.search(r'Content\s*=\s*"(.*?)"', attrs, flags=re.DOTALL)
                             if m1:
-                                msgs.append(m1.group(1))
+                                import html
+                                msgs.append(html.unescape(m1.group(1)))
                                 continue
                             m2 = re.search(r"Content\s*=\s*'(.*?)'", attrs, flags=re.DOTALL)
                             if m2:
-                                msgs.append(m2.group(1))
+                                import html
+                                msgs.append(html.unescape(m2.group(1)))
 
                         for text in msgs:
                             if text and self.is_chinese(text):
@@ -1493,6 +1495,8 @@ class TranslationApp:
                         cont_m = (re.search(r'Content\s*=\s*"(.*?)"', raw_elem) or
                                   re.search(r"Content\s*=\s*'(.*?)'", raw_elem))
                         original_content = cont_m.group(1) if cont_m else ''
+                        import html
+                        original_content = html.unescape(original_content)
                         messages.append((msg_id, original_content, raw_elem))
                     self.log(f"从 {os.path.basename(xml_file)} 提取 {len(messages)} 条 Message")
                     if len(messages) == 0:
