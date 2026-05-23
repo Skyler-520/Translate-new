@@ -843,6 +843,7 @@ class TranslationApp:
                                 padding=4)
             dlg_style.configure('Accent.TButton', font=('Segoe UI', 10, 'bold'), padding=10)
             dlg_style.configure('TButton', font=('Segoe UI', 9), padding=6)
+            dlg_style.configure('Match.TFrame', background='#EDE7FF')
         
         main = ttk.Frame(top, style='Dialog.TFrame', padding=24)
         main.pack(fill=tk.BOTH, expand=True)
@@ -863,7 +864,21 @@ class TranslationApp:
         search_var = tk.StringVar()
         search_entry = ttk.Entry(search_row, textvariable=search_var, width=40, style='Search.TEntry')
         search_entry.pack(side='left', padx=(8, 0), fill=tk.X, expand=True)
-        search_entry.focus_set()
+        search_entry.insert(0, '搜索语言代码、英文或中文国家名...')
+        search_entry.configure(foreground='#A5A0C0')
+        
+        def on_search_focus_in(e):
+            if search_entry.get() == '搜索语言代码、英文或中文国家名...':
+                search_entry.delete(0, tk.END)
+                search_entry.configure(foreground='#2D2B4E')
+        
+        def on_search_focus_out(e):
+            if not search_entry.get().strip():
+                search_entry.insert(0, '搜索语言代码、英文或中文国家名...')
+                search_entry.configure(foreground='#A5A0C0')
+        
+        search_entry.bind('<FocusIn>', on_search_focus_in)
+        search_entry.bind('<FocusOut>', on_search_focus_out)
         
         list_card = ttk.Frame(main, style='DialogCard.TFrame', padding=16)
         list_card.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
@@ -929,14 +944,58 @@ class TranslationApp:
             chk.pack(anchor='w', padx=8, pady=6)
             lang_frames[code] = item
         
+        def extract_cn_text(name):
+            import re as _re
+            cn = _re.findall(r'[\u4e00-\u9fff]+', name)
+            return ' '.join(cn).lower()
+        
+        match_count = 0
+        
         def on_search(*args):
+            nonlocal match_count
             txt = search_var.get().lower().strip()
+            
+            if txt == '搜索语言代码、英文或中文国家名...'.lower():
+                txt = ''
+            
+            first_match = None
+            match_count = 0
+            
             for code, frm in lang_frames.items():
                 info = LANG_MAP[code]
-                if txt and txt not in info['name'].lower() and txt not in code.lower():
-                    frm.pack_forget()
+                full_text = f"{code} {info['name']}".lower()
+                cn_text = extract_cn_text(info['name'])
+                
+                if txt:
+                    matched = (txt in full_text or txt in code.lower() or 
+                               txt in cn_text or txt in info['name'].lower())
+                    
+                    if matched:
+                        frm.pack(fill=tk.X, pady=2, padx=4)
+                        try: frm.configure(style='Match.TFrame')
+                        except: pass
+                        if first_match is None:
+                            first_match = frm
+                        match_count += 1
+                    else:
+                        frm.pack_forget()
                 else:
                     frm.pack(fill=tk.X, pady=2, padx=4)
+                    try: frm.configure(style='DialogCard.TFrame')
+                    except: pass
+            
+            if txt:
+                status_label.config(text=f"已选择 {sum(1 for v in lang_vars.values() if v.get())}/20 种语言  |  找到 {match_count} 个匹配")
+            else:
+                status_label.config(text=f"已选择 {sum(1 for v in lang_vars.values() if v.get())}/20 种语言")
+            
+            if first_match:
+                canvas.update_idletasks()
+                try:
+                    y = canvas.coords(canvas.find_withtag('all')[0])[1] if canvas.find_withtag('all') else 0
+                    canvas.yview_moveto((frm.winfo_rooty() - scrollable.winfo_rooty() + 20) / scrollable.winfo_height())
+                except Exception:
+                    pass
         
         search_var.trace('w', on_search)
         
