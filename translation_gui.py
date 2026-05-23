@@ -156,6 +156,44 @@ LANG_MAP = {
     'KOK': {'code': 'kok', 'name': 'Konkani: India (孔卡尼语:印度)'}
 }
 
+# RES输出时追加的语言标识: 语言代码 → 本机语言名
+LANG_NATIVE_NAME = {
+    'CHS': '中文(简体)', 'CHT': '中文(繁體)', 'ZHH': '中文(香港)',
+    'ZHI': '中文(台湾)', 'ZHM': '中文(澳门)',
+    'ENG': 'English', 'USA': 'English', 'ENA': 'English', 'ENC': 'English',
+    'ENZ': 'English', 'ENI': 'English', 'ENS': 'English',
+    'GER': 'Deutsch', 'DES': 'Deutsch', 'DEA': 'Deutsch', 'DEL': 'Deutsch', 'DEC': 'Deutsch',
+    'JPN': '日本語', 'KOR': '한국어', 'FRA': 'Français', 'FRB': 'Français',
+    'FRC': 'Français', 'FRS': 'Français', 'FRL': 'Français', 'FRM': 'Français',
+    'ITA': 'Italiano', 'ITS': 'Italiano',
+    'ESP': 'Español', 'ESM': 'Español', 'ESG': 'Español', 'ESC': 'Español',
+    'ESA': 'Español', 'ESD': 'Español', 'ESV': 'Español', 'ESO': 'Español',
+    'ESR': 'Español', 'ESS': 'Español', 'ESF': 'Español', 'ESL': 'Español',
+    'ESY': 'Español', 'ESB': 'Español', 'ESE': 'Español', 'ESH': 'Español',
+    'ESN': 'Español', 'ESU': 'Español', 'ESP2': 'Español',
+    'RUS': 'Русский', 'PTG': 'Português', 'PTB': 'Português',
+    'TRK': 'Türkçe', 'PLK': 'Polski', 'VIT': 'Tiếng Việt',
+    'CAT': 'Català', 'THA': 'ไทย', 'DAN': 'Dansk', 'NON': 'Norsk',
+    'SVE': 'Svenska', 'FIN': 'Suomi', 'NLN': 'Nederlands', 'NLB': 'Nederlands',
+    'CSY': 'Čeština', 'SKY': 'Slovenčina', 'HUN': 'Magyar', 'ELL': 'Ελληνικά',
+    'ARA': 'العربية', 'ARL': 'العربية', 'ARG': 'العربية', 'ARM': 'العربية',
+    'ART': 'العربية', 'ARO': 'العربية', 'ARY': 'العربية', 'ARS': 'العربية',
+    'ARJ': 'العربية', 'ARB': 'العربية', 'ARK': 'العربية', 'ARU': 'العربية',
+    'ARH': 'العربية', 'ARQ': 'العربية',
+    'BGR': 'Български', 'UKR': 'Українська', 'BEL': 'Беларуская',
+    'KAZ': 'Қазақша', 'SRB': 'Српски', 'HRV': 'Hrvatski', 'SLV': 'Slovenščina',
+    'EST': 'Eesti', 'LVI': 'Latviešu', 'LTH': 'Lietuvių', 'LTC': 'Lietuvių',
+    'ROM': 'Română', 'ROM2': 'Română', 'IND': 'Bahasa Indonesia',
+    'HEB': 'עברית', 'FAR': 'فارسی', 'URD': 'اردو',
+    'HYE': 'Հայերեն', 'KAT': 'ქართული', 'AZE': 'Azərbaycan',
+    'HIN': 'हिन्दी', 'BEN': 'বাংলা', 'PAN': 'ਪੰਜਾਬੀ', 'GUJ': 'ગુજરાતી',
+    'ORI': 'ଓଡ଼ିଆ', 'TAM': 'தமிழ்', 'TEL': 'తెలుగు', 'KAN': 'ಕನ್ನಡ',
+    'MAL': 'മലയാളം', 'ASM': 'অসমীয়া', 'MAR': 'मराठी', 'SAN': 'संस्कृतम्',
+    'KOK': 'कोंकणी', 'MSL': 'Bahasa Melayu', 'MSB': 'Bahasa Melayu',
+    'SWK': 'Kiswahili', 'UZB': 'O\'zbek', 'TAT': 'Татарча',
+    'MKI': 'Македонски', 'AFK': 'Afrikaans', 'FOS': 'Føroyskt',
+}
+
 # 默认显示的语言列表（11种常用语言）
 DEFAULT_LANGS = ['CAT', 'CHT', 'ESP', 'GER', 'ITA', 'KOR', 'PLK', 'PTG', 'RUS', 'TRK', 'VIT']
 
@@ -1484,6 +1522,8 @@ class TranslationApp:
                         if self.logger:
                             self.logger.exception(re_e)
 
+                self.log(f"从 {os.path.basename(xml_file)} 提取 {len(messages)} 条Message（含非中文），准备生成翻译文件")
+
                 file_name = os.path.basename(xml_file)
                 if file_name.endswith('.xml'):
                     base_name = file_name[:-4]
@@ -1515,6 +1555,11 @@ class TranslationApp:
                     lines.append('<?xml version="1.0" encoding="utf-8"?>')
                     lines.append('<ResMap>')
 
+                    if pack_after_write:
+                        lang_identity = LANG_NATIVE_NAME.get(lang, lang)
+                        lang_identity = lang_identity.replace('\n', '&#xA;').replace('"', '&quot;')
+                        lines.append(f'  <Message ID="{lang}" Content="{lang_identity}" />')
+
                     for msg_id, original_content in messages:
                         if original_content in self.translation_table and lang in self.translation_table[original_content]:
                             translated = self.translation_table[original_content][lang]
@@ -1531,7 +1576,7 @@ class TranslationApp:
                     try:
                         with open(xml_output_path, 'w', encoding='utf-8') as f_out:
                             f_out.write('\n'.join(lines))
-                        self.log(f"生成: {xml_output_path}")
+                        self.log(f"生成 {lang}: {os.path.basename(xml_output_path)} ({len(messages)} 条Message)")
                     except Exception as write_e:
                         self.log(f"写入文件失败: {write_e}")
                         if self.logger:
