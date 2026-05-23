@@ -383,6 +383,17 @@ class TranslationApp:
         action_frame = ttk.Frame(header_frame, style='TFrame')
         action_frame.grid(row=0, column=2, rowspan=2, sticky='e')
         
+        api_top = ttk.Frame(action_frame, style='TFrame')
+        api_top.pack(side='left', padx=(0, 12))
+        
+        ttk.Label(api_top, text="API:", font=('Segoe UI', 9)).pack(side='left')
+        self.api_type_var = tk.StringVar(value=self.api_type)
+        api_combo = ttk.Combobox(api_top, textvariable=self.api_type_var, values=['google', 'baidu'],
+                                 state='readonly', width=7, font=('Segoe UI', 9))
+        api_combo.pack(side='left', padx=4)
+        api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
+        ttk.Button(api_top, text="配置", command=self.configure_api).pack(side='left')
+        
         self.start_btn = ttk.Button(action_frame, text="▶ 开始翻译", command=self.start_translation, style='Accent.TButton')
         self.start_btn.pack(side='left', padx=4)
         
@@ -441,16 +452,6 @@ class TranslationApp:
         ttk.Checkbutton(lang_toolbar, text="显示全部语言", variable=self.lang_show_var,
                        command=self.toggle_lang_display).pack(side='left', padx=4)
         ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=4)
-        
-        api_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
-        api_frame.pack(side='left', padx=12)
-        ttk.Label(api_frame, text="API:", font=('Segoe UI', 9)).pack(side='left')
-        self.api_type_var = tk.StringVar(value=self.api_type)
-        api_combo = ttk.Combobox(api_frame, textvariable=self.api_type_var, values=['google', 'baidu'],
-                                 state='readonly', width=7, font=('Segoe UI', 9))
-        api_combo.pack(side='left', padx=4)
-        api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
-        ttk.Button(api_frame, text="配置", command=self.configure_api).pack(side='left')
         
         btn_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
         btn_frame.pack(side='right')
