@@ -20,6 +20,10 @@ import threading
 import hashlib
 import uuid
 from openpyxl import Workbook, load_workbook
+import argparse
+import tempfile
+import logging
+import re
 
 # 语言映射字典 - 包含语言代码、名称和中文说明
 # 格式: {'语言缩写': {'code': 'Google翻译代码', 'name': '语言名称 (中文语言:中文国家)'}}
@@ -186,6 +190,8 @@ class TranslationApp:
         self.default_langs = DEFAULT_LANGS.copy()  # 默认语言列表
         self.show_all_langs = False     # 是否显示所有语言
         self.translation_complete = False  # 翻译是否完成
+        self.headless = False  # 是否为无界面模式（命令行）
+        self.logger = None
         
         # API配置变量
         self.api_type = 'google'  # 当前使用的翻译API类型：google 或 baidu
@@ -216,6 +222,31 @@ class TranslationApp:
                         self.baidu_secret_key = config['baidu_secret_key']
             except Exception as e:
                 self.log(f"加载配置失败: {e}")
+                self._ensure_logger()
+                if self.logger:
+                    self.logger.exception(f"加载配置失败: {e}")
+
+    def _ensure_logger(self, log_file=None):
+        """
+        初始化文件日志（可选）
+        """
+        if self.logger:
+            return
+        try:
+            self.logger = logging.getLogger('translation_app')
+            self.logger.setLevel(logging.DEBUG)
+            fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            # 控制台处理器
+            ch = logging.StreamHandler()
+            ch.setFormatter(fmt)
+            self.logger.addHandler(ch)
+            # 可选文件处理器
+            if log_file:
+                fh = logging.FileHandler(log_file, encoding='utf-8')
+                fh.setFormatter(fmt)
+                self.logger.addHandler(fh)
+        except Exception:
+            self.logger = None
     
     def save_config(self):
         """
@@ -408,9 +439,13 @@ class TranslationApp:
                 self.output_dir = os.path.dirname(first_file_dir)
                 self.log(f"输出目录已设置为: {self.output_dir}")
             for file in files:
-                if file not in self.source_files:
-                    self.source_files.append(file)
-                    self.file_listbox.insert(tk.END, file)
+                prepared = self.prepare_file(file)
+                if prepared and prepared not in self.source_files:
+                    self.source_files.append(prepared)
+                    self.file_listbox.insert(tk.END, prepared)
+                else:
+                    # 若无法准备（例如解压失败或不支持），记录并跳过
+                    self.log(f"跳过文件: {file}")
     
     def refresh_file_list(self):
         """
@@ -422,11 +457,60 @@ class TranslationApp:
         if self.source_folder and os.path.isdir(self.source_folder):
             for root_dir, dirs, files in os.walk(self.source_folder):
                 for file in files:
-                    if file.endswith('.xml') or file.endswith('.res'):
-                        file_path = os.path.join(root_dir, file)
-                        self.source_files.append(file_path)
-                        self.file_listbox.insert(tk.END, file_path)
-            self.log(f"已扫描到 {len(self.source_files)} 个文件（XML和RES）")
+                    file_path = os.path.join(root_dir, file)
+                    prepared = self.prepare_file(file_path)
+                    if prepared:
+                        self.source_files.append(prepared)
+                        self.file_listbox.insert(tk.END, prepared)
+            self.log(f"已扫描到 {len(self.source_files)} 个可处理文件（XML/RES）")
+
+    def prepare_file(self, file_path):
+        """
+        准备单个文件：自动识别类型，RES文件解压为无后缀名的XML文件并返回新路径
+        返回可供后续处理的文件路径（XML文本文件路径），失败返回None
+        """
+        try:
+            if file_path.lower().endswith('.res'):
+                # 将RES解压写入到输出目录下的临时文件（无扩展名）
+                base = os.path.splitext(os.path.basename(file_path))[0]
+                conv_dir = os.path.join(self.output_dir, '_res_converted')
+                os.makedirs(conv_dir, exist_ok=True)
+                target_path = os.path.join(conv_dir, base)  # 无后缀名
+                if os.path.exists(target_path) and os.path.getmtime(target_path) >= os.path.getmtime(file_path):
+                    # 验证缓存文件是否为有效XML内容
+                    try:
+                        with open(target_path, 'r', encoding='utf-8') as tf:
+                            preview = tf.read(200).strip()
+                        if preview and (preview.startswith('<?xml') or preview.startswith('<')):
+                            return target_path
+                        else:
+                            self.log(f"缓存文件 {os.path.basename(target_path)} 内容无效，重新解压")
+                    except Exception:
+                        self.log(f"缓存文件 {os.path.basename(target_path)} 读取失败，重新解压")
+                content = self.decompress_res(file_path)
+                if content is None:
+                    self.log(f"RES解压失败: {file_path}")
+                    if self.logger:
+                        self.logger.error(f"RES解压失败: {file_path}")
+                    return None
+                with open(target_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                self.log(f"已转换RES -> 无后缀XML: {os.path.basename(target_path)}")
+                return target_path
+            else:
+                # 仅接受XML或无后缀（可能是已转换的RES）
+                if file_path.lower().endswith('.xml') or not os.path.splitext(file_path)[1]:
+                    return file_path
+                # 其它类型不支持
+                self.log(f"跳过不支持的文件类型: {file_path}")
+                if self.logger:
+                    self.logger.warning(f"跳过不支持的文件类型: {file_path}")
+                return None
+        except Exception as e:
+            self.log(f"准备文件失败: {file_path} -> {e}")
+            if self.logger:
+                self.logger.exception(e)
+            return None
     
     def add_files(self):
         """
@@ -440,9 +524,12 @@ class TranslationApp:
             self.output_dir = os.path.dirname(first_file_dir)
             self.log(f"输出目录已设置为: {self.output_dir}")
         for file in files:
-            if file not in self.source_files:
-                self.source_files.append(file)
-                self.file_listbox.insert(tk.END, file)
+            prepared = self.prepare_file(file)
+            if prepared and prepared not in self.source_files:
+                self.source_files.append(prepared)
+                self.file_listbox.insert(tk.END, prepared)
+            else:
+                self.log(f"跳过文件: {file}")
     
     def remove_files(self):
         """
@@ -700,30 +787,54 @@ class TranslationApp:
         
         for source_file in self.source_files:
             try:
-                # 判断是否为RES文件
-                if source_file.endswith('.res'):
-                    # RES文件需要先解压
-                    content = self.decompress_res(source_file)
-                    if content is None:
-                        self.log(f"解压 {os.path.basename(source_file)} 失败")
-                        continue
-                    self.log(f"已解压 RES 文件: {os.path.basename(source_file)}")
-                else:
-                    # XML文件直接读取
-                    with open(source_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
+                # 当前source_files应为XML文本文件路径（可能为无后缀的已转换RES）
+                with open(source_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
                 
                 parser = ET.XMLParser(encoding='utf-8')
-                root = ET.fromstring(content, parser=parser)
-                
-                for elem in root.findall('.//Message'):
-                    text = elem.get('Content', '')
-                    if text and self.is_chinese(text):
-                        all_texts.add(text)
-                self.log(f"从 {os.path.basename(source_file)} 提取到中文文本")
+                try:
+                    root = ET.fromstring(content, parser=parser)
+                    for elem in root.findall('.//Message'):
+                        text = elem.get('Content', '')
+                        if text and self.is_chinese(text):
+                            all_texts.add(text)
+                    self.log(f"从 {os.path.basename(source_file)} 提取到中文文本")
+                except Exception as pe:
+                    # 容错：XML 解析失败，尝试通过正则抽取 Message 的 Content 属性
+                    self.log(f"解析 {os.path.basename(source_file)} 时 XML 解析失败: {pe}, 尝试正则容错抽取")
+                    if self.logger:
+                        self.logger.exception(pe)
+
+                    try:
+                        # 匹配 <Message ... Content="..." .../> 或 Content='...'
+                        msgs = []
+                        for m in re.finditer(r'<Message\b([^>]*)>', content, flags=re.IGNORECASE | re.DOTALL):
+                            attrs = m.group(1)
+                            # 尝试双引号
+                            m1 = re.search(r'Content\s*=\s*"(.*?)"', attrs, flags=re.DOTALL)
+                            if m1:
+                                msgs.append(m1.group(1))
+                                continue
+                            m2 = re.search(r"Content\s*=\s*'(.*?)'", attrs, flags=re.DOTALL)
+                            if m2:
+                                msgs.append(m2.group(1))
+
+                        for text in msgs:
+                            if text and self.is_chinese(text):
+                                all_texts.add(text)
+
+                        self.log(f"正则方式从 {os.path.basename(source_file)} 提取到 {len(msgs)} 条 Message")
+                        if len(msgs) == 0:
+                            content_preview = content.strip()[:120]
+                            self.log(f"警告: {os.path.basename(source_file)} 未匹配到任何Message标签，文件预览: {content_preview}")
+                    except Exception as re_e:
+                        self.log(f"正则抽取失败: {re_e}")
+                        if self.logger:
+                            self.logger.exception(re_e)
             except Exception as e:
                 self.log(f"解析 {source_file} 失败: {e}")
-        
+                if self.logger:
+                    self.logger.exception(f"解析失败: {source_file}")
         # 将新文本添加到翻译表
         for text in all_texts:
             if text not in self.translation_table:
@@ -740,19 +851,40 @@ class TranslationApp:
         """
         try:
             with open(res_file_path, 'rb') as f:
-                data = f.read()
-            
-            # 检查是否为GZIP格式
-            if len(data) < 10 or data[:2] != b'\x1f\x8b':
-                self.log(f"警告: {os.path.basename(res_file_path)} 不是有效的GZIP文件")
+                head = f.read(2)
+                f.seek(0)
+                if head != b'\x1f\x8b':
+                    self.log(f"警告: {os.path.basename(res_file_path)} 不是有效的GZIP文件")
+                    return None
+                import gzip
+                with gzip.GzipFile(fileobj=f) as gz:
+                    data = gz.read()
+
+            # 先尝试utf-8解码，失败则使用替代策略
+            try:
+                text = data.decode('utf-8')
+            except UnicodeDecodeError:
+                # 记录并尝试使用替代解码
+                self.log(f"警告: {os.path.basename(res_file_path)} UTF-8 解码失败，使用替代解码")
+                if self.logger:
+                    self.logger.exception(f"UTF-8 解码失败: {res_file_path}")
+                try:
+                    text = data.decode('utf-8', errors='replace')
+                except Exception:
+                    text = data.decode('latin-1', errors='replace')
+
+            stripped = text.strip()
+            if not stripped:
+                self.log(f"错误: {os.path.basename(res_file_path)} 解压后内容为空")
                 return None
-            
-            import zlib
-            # 跳过GZIP头（10字节），解压数据
-            decompressed = zlib.decompress(data[10:-8], -15)
-            return decompressed.decode('utf-8')
+            if not (stripped.startswith('<?xml') or stripped.startswith('<')):
+                self.log(f"错误: {os.path.basename(res_file_path)} 解压后内容不是有效XML（预览: {stripped[:80]}）")
+                return None
+            return text
         except Exception as e:
             self.log(f"解压错误: {e}")
+            if self.logger:
+                self.logger.exception(e)
             return None
     
     def is_chinese(self, text):
@@ -1018,13 +1150,30 @@ class TranslationApp:
         """
         # 检查输入
         if not self.source_files:
-            messagebox.showwarning("警告", "请先选择XML源文件或文件夹")
-            return
-        
-        self.selected_langs = [lang for lang, var in self.lang_vars.items() if var.get()]
+            msg = "请先选择XML源文件或文件夹"
+            if self.headless:
+                self.log(f"错误: {msg}")
+                if self.logger:
+                    self.logger.error(msg)
+                return
+            else:
+                messagebox.showwarning("警告", msg)
+                return
+
+        # 获取选中的语言（GUI模式）或保持已有设置（headless可在外部设置）
+        if not self.headless:
+            self.selected_langs = [lang for lang, var in self.lang_vars.items() if var.get()]
+
         if not self.selected_langs:
-            messagebox.showwarning("警告", "请至少选择一种目标语言")
-            return
+            msg = "请至少选择一种目标语言"
+            if self.headless:
+                self.log(f"错误: {msg}")
+                if self.logger:
+                    self.logger.error(msg)
+                return
+            else:
+                messagebox.showwarning("警告", msg)
+                return
         
         # 初始化状态
         self.start_btn.config(state='disabled')
@@ -1208,12 +1357,26 @@ class TranslationApp:
         将翻译结果写入对应语言文件夹
         """
         if not self.source_files:
-            messagebox.showwarning("警告", "请先选择XML源文件")
-            return
-        
+            msg = "请先选择XML源文件"
+            if self.headless:
+                self.log(f"错误: {msg}")
+                if self.logger:
+                    self.logger.error(msg)
+                return
+            else:
+                messagebox.showwarning("警告", msg)
+                return
+
         if not self.selected_langs:
-            messagebox.showwarning("警告", "请至少选择一种目标语言")
-            return
+            msg = "请至少选择一种目标语言"
+            if self.headless:
+                self.log(f"错误: {msg}")
+                if self.logger:
+                    self.logger.error(msg)
+                return
+            else:
+                messagebox.showwarning("警告", msg)
+                return
         
         self.log("开始生成XML文件...")
         
@@ -1221,52 +1384,93 @@ class TranslationApp:
             try:
                 with open(xml_file, 'r', encoding='utf-8') as f:
                     content = f.read()
+
+                messages = []
                 parser = ET.XMLParser(encoding='utf-8')
-                root = ET.fromstring(content, parser=parser)
-                
-                file_name = os.path.basename(xml_file)
-                
-                # 为每种选中的语言生成XML文件
-                for lang in self.selected_langs:
-                    output_path = os.path.join(self.output_dir, lang, 'String', file_name)
-                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                    
-                    lines = []
-                    lines.append('<?xml version="1.0" encoding="utf-8"?>')
-                    lines.append('<ResMap>')
-                    
+                try:
+                    root = ET.fromstring(content, parser=parser)
                     for elem in root.findall('.//Message'):
                         msg_id = elem.get('ID', '')
                         original_content = elem.get('Content', '')
-                        
+                        messages.append((msg_id, original_content))
+                except Exception as parse_e:
+                    self.log(f"解析 {os.path.basename(xml_file)} 时 XML 解析失败: {parse_e}，尝试正则抽取")
+                    if self.logger:
+                        self.logger.exception(parse_e)
+                    # 正则抽取 ID 和 Content
+                    try:
+                        for m in re.finditer(r'<Message\b([^>]*)/?>', content, flags=re.IGNORECASE | re.DOTALL):
+                            attrs = m.group(1)
+                            id_m = re.search(r'ID\s*=\s*"(.*?)"', attrs) or re.search(r"ID\s*=\s*'(.*?)'", attrs)
+                            cont_m = re.search(r'Content\s*=\s*"(.*?)"', attrs) or re.search(r"Content\s*=\s*'(.*?)'", attrs)
+                            msg_id = id_m.group(1) if id_m else ''
+                            original_content = cont_m.group(1) if cont_m else ''
+                            messages.append((msg_id, original_content))
+                        self.log(f"正则方式从 {os.path.basename(xml_file)} 提取到 {len(messages)} 条 Message")
+                        if len(messages) == 0:
+                            content_preview = content.strip()[:120]
+                            self.log(f"警告: {os.path.basename(xml_file)} 未匹配到任何Message标签，文件预览: {content_preview}")
+                    except Exception as re_e:
+                        self.log(f"正则抽取失败: {re_e}")
+                        if self.logger:
+                            self.logger.exception(re_e)
+
+                file_name = os.path.basename(xml_file)
+                if file_name.endswith('.xml'):
+                    base_name = file_name[:-4]
+                else:
+                    base_name = file_name
+
+                # 为每种选中的语言生成XML文件
+                for lang in self.selected_langs:
+                    xml_output_path = os.path.join(self.output_dir, lang, 'String', base_name + '.xml')
+                    os.makedirs(os.path.dirname(xml_output_path), exist_ok=True)
+
+                    lines = []
+                    lines.append('<?xml version="1.0" encoding="utf-8"?>')
+                    lines.append('<ResMap>')
+
+                    for msg_id, original_content in messages:
                         # 获取翻译内容
                         if original_content in self.translation_table and lang in self.translation_table[original_content]:
                             translated = self.translation_table[original_content][lang]
-                            if translated and translated != original_content:
-                                content = translated
-                            else:
-                                content = original_content
+                            content_val = translated if translated and translated != original_content else original_content
                         else:
-                            content = original_content
-                        
-                        # 处理换行符
-                        content = content.replace('\n', '&#xA;')
-                        lines.append(f'\t<Message ID="{msg_id}" Content="{content}" />')
-                    
+                            content_val = original_content
+
+                        # 处理换行符与引号转义
+                        content_val = content_val.replace('\n', '&#xA;')
+                        content_val = content_val.replace('"', '&quot;')
+                        lines.append(f'\t<Message ID="{msg_id}" Content="{content_val}" />')
+
                     lines.append('</ResMap>')
-                    
-                    # 写入文件
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write('\n'.join(lines))
-                    
-                    self.log(f"生成: {output_path}")
-                    
-                    # 如果勾选了打包选项，将XML文件打包为.res
+
+                    # 写入XML文件（带.xml后缀）
+                    try:
+                        with open(xml_output_path, 'w', encoding='utf-8') as f_out:
+                            f_out.write('\n'.join(lines))
+                        self.log(f"生成: {xml_output_path}")
+                    except Exception as write_e:
+                        self.log(f"写入文件失败: {write_e}")
+                        if self.logger:
+                            self.logger.exception(write_e)
+
+                    # 如果勾选了打包选项，创建无后缀副本并打包为.res
                     if self.pack_var.get():
-                        self.pack_to_res(output_path)
-            
+                        noext_path = os.path.join(self.output_dir, lang, 'String', base_name)
+                        try:
+                            import shutil
+                            shutil.copy2(xml_output_path, noext_path)
+                            self.log(f"创建无后缀副本: {noext_path}")
+                        except Exception as copy_e:
+                            self.log(f"创建无后缀副本失败: {copy_e}")
+                            if self.logger:
+                                self.logger.exception(copy_e)
+                        self.pack_to_res(noext_path)
             except Exception as e:
                 self.log(f"生成XML失败: {e}")
+                if self.logger:
+                    self.logger.exception(e)
         
         self.log("所有XML文件已生成完成！")
         if self.pack_var.get():
@@ -1292,8 +1496,11 @@ class TranslationApp:
             gzip_header += b'\x00'              # XFL (0)
             gzip_header += b'\xff'              # OS (255 = unknown)
             
-            # 生成.res文件路径（替换.xml扩展名）
-            res_path = xml_file_path.replace('.xml', '.res')
+            # 生成.res文件路径
+            if xml_file_path.endswith('.xml'):
+                res_path = xml_file_path[:-4] + '.res'
+            else:
+                res_path = xml_file_path + '.res'
             
             # 写入文件
             with open(res_path, 'wb') as f_out:
@@ -1458,6 +1665,87 @@ if __name__ == '__main__':
     程序入口
     创建主窗口并启动应用
     """
-    root = tk.Tk()
-    app = TranslationApp(root)
-    root.mainloop()
+    parser = argparse.ArgumentParser(description='自动化翻译处理工具（GUI/命令行）')
+    parser.add_argument('--input', '-i', help='输入文件或文件夹路径（支持XML或RES）')
+    parser.add_argument('--mode', choices=['batch', 'single'], default='batch', help='处理模式: batch=文件夹, single=单文件')
+    parser.add_argument('--output', '-o', help='输出目录（默认为脚本目录）')
+    parser.add_argument('--langs', help='逗号分隔的目标语言缩写（例如: CHS,ENG）')
+    parser.add_argument('--pack', action='store_true', help='处理后是否打包为.res')
+    parser.add_argument('--log', help='将详细日志写入指定文件')
+    parser.add_argument('--nogui', action='store_true', help='无界面模式（仅命令行）')
+    args = parser.parse_args()
+
+    if args.nogui or args.input:
+        # headless / CLI 模式
+        root = tk.Tk()
+        root.withdraw()
+        app = TranslationApp(root)
+        app.headless = True
+        # 设置输出目录
+        if args.output:
+            app.output_dir = args.output
+        # 准备日志
+        if args.log:
+            app._ensure_logger(args.log)
+        else:
+            app._ensure_logger()
+
+        # 设置打包选项
+        app.pack_var.set(bool(args.pack))
+
+        # 设置语言列表
+        if args.langs:
+            langs = [s.strip() for s in args.langs.split(',') if s.strip()]
+            app.selected_langs = langs
+        else:
+            app.selected_langs = app.default_langs.copy()
+
+        # 准备输入文件列表
+        if args.input:
+            if os.path.isdir(args.input) and args.mode == 'batch':
+                app.source_folder = args.input
+                app.refresh_file_list()
+            elif os.path.isfile(args.input) and args.mode == 'single':
+                # 单文件处理
+                prepared = app.prepare_file(args.input)
+                if prepared:
+                    app.source_files = [prepared]
+                else:
+                    app.log('无法准备输入文件，退出')
+                    exit(1)
+            else:
+                # 如果用户指定文件，但没有选择single模式，尝试作为单文件处理
+                if os.path.isfile(args.input):
+                    prepared = app.prepare_file(args.input)
+                    if prepared:
+                        app.source_files = [prepared]
+                    else:
+                        app.log('无法准备输入文件，退出')
+                        exit(1)
+                else:
+                    app.log('输入路径无效')
+                    exit(1)
+
+        # 启动处理流程（同步等待完成）
+        app.log('命令行模式: 开始处理')
+        app.start_translation()
+
+        # 等待翻译完成（轮询）
+        try:
+            while not app.translation_complete:
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            app.log('用户中断')
+            exit(2)
+
+        # 生成XML
+        app.generate_xml_files()
+        app.save_translation_table()
+        app.log('命令行模式: 处理完成')
+        if app.logger:
+            app.logger.info('处理完成')
+        exit(0)
+    else:
+        root = tk.Tk()
+        app = TranslationApp(root)
+        root.mainloop()
