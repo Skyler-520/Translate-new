@@ -453,6 +453,28 @@ class TranslationApp:
         self.lang_show_var = tk.BooleanVar(value=self.show_all_langs)
         ttk.Checkbutton(lang_toolbar, text="显示全部语言", variable=self.lang_show_var,
                        command=self.toggle_lang_display).pack(side='left', padx=4)
+        
+        self.main_lang_search_var = tk.StringVar()
+        search_entry = ttk.Entry(lang_toolbar, textvariable=self.main_lang_search_var, width=14,
+                                  font=('Segoe UI', 9))
+        search_entry.pack(side='left', padx=(8, 4))
+        search_entry.insert(0, '🔍 搜索...')
+        search_entry.configure(foreground='#A5A0C0')
+        
+        def _on_focus_in(e):
+            if self.main_lang_search_var.get() == '🔍 搜索...':
+                search_entry.delete(0, tk.END)
+                search_entry.configure(foreground='#2D2B4E')
+        
+        def _on_focus_out(e):
+            if not self.main_lang_search_var.get().strip():
+                search_entry.insert(0, '🔍 搜索...')
+                search_entry.configure(foreground='#A5A0C0')
+        
+        search_entry.bind('<FocusIn>', _on_focus_in)
+        search_entry.bind('<FocusOut>', _on_focus_out)
+        self.main_lang_search_var.trace('w', lambda *args: self._filter_main_langs())
+        
         ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=4)
         
         btn_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
@@ -780,10 +802,10 @@ class TranslationApp:
             widget.destroy()
         
         self.lang_vars = {}
-        # 根据模式选择显示的语言
+        self.main_lang_frames = {}
+        
         display_langs = LANG_MAP if self.show_all_langs else {k: v for k, v in LANG_MAP.items() if k in self.default_langs}
         
-        # 创建复选框网格
         col = 0
         row_lang = 0
         for lang, info in sorted(display_langs.items()):
@@ -791,6 +813,7 @@ class TranslationApp:
             chk = ttk.Checkbutton(self.lang_frame, text=f"{lang} - {info['name']}", variable=var)
             chk.grid(row=row_lang, column=col, sticky=tk.W, padx=5, pady=2)
             self.lang_vars[lang] = var
+            self.main_lang_frames[lang] = chk
             col += 1
             if col >= 2:
                 col = 0
@@ -808,6 +831,25 @@ class TranslationApp:
         if hasattr(self, 'stats_refs') and 'shared' in self.stats_refs:
             total = len(self.translation_table)
             self.stats_refs['shared'].configure(text=str(total))
+    
+    def _filter_main_langs(self):
+        if not hasattr(self, 'main_lang_frames'):
+            return
+        txt = self.main_lang_search_var.get().strip()
+        if txt == '🔍 搜索...':
+            txt = ''
+        txt = txt.lower()
+        import re as _re
+        
+        for code, chk in self.main_lang_frames.items():
+            info = LANG_MAP.get(code, {})
+            name = info.get('name', '')
+            cn = ' '.join(_re.findall(r'[\u4e00-\u9fff]+', name)).lower()
+            
+            if not txt or txt in code.lower() or txt in name.lower() or txt in cn:
+                chk.grid()
+            else:
+                chk.grid_remove()
     
     def select_all_langs(self):
         """
