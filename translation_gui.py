@@ -1331,8 +1331,9 @@ class TranslationApp:
                     self.root.after(0, lambda p=current_progress, c=current_completed: self._update_progress(p, c))
                     self.log(f"进度: {current_progress}% ({current_completed}/{total_needed})")
 
-            self.log("执行智能缩写...")
-            self.abbreviate_translations()
+            # 智能缩写已屏蔽（翻译表与导出XML内容不一致时排查用）
+            # self.log("执行智能缩写...")
+            # self.abbreviate_translations()
             self.save_translation_table()
             self.root.after(0, lambda: self._update_progress(100, total_needed))
             self.log("翻译完成！")
