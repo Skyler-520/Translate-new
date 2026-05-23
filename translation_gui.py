@@ -1535,9 +1535,9 @@ class TranslationApp:
                         pack_after_write = True
                     elif is_diskc_xml:
                         rel_path = self.diskc_xml_map[xml_file]
-                        lang_dir = os.path.join(self.diskc_root, 'OpenCnc Shared', 'OCRes', lang)
-                        os.makedirs(os.path.join(lang_dir, os.path.dirname(rel_path)), exist_ok=True)
-                        xml_output_path = os.path.join(lang_dir, rel_path)
+                        string_dir = os.path.join(self.diskc_root, 'OpenCnc Shared', 'OCRes', lang, 'String')
+                        os.makedirs(os.path.join(string_dir, os.path.dirname(rel_path)), exist_ok=True)
+                        xml_output_path = os.path.join(string_dir, rel_path)
                         pack_after_write = False
                     else:
                         xml_output_path = os.path.join(self.output_dir, lang, 'String', base_name + '.xml')
