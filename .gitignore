@@ -1,5 +1,4 @@
 translation_config.json
-translation_table.json
 *.log
 __pycache__/
 *.py[cod]
