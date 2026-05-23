@@ -1431,6 +1431,14 @@ class TranslationApp:
             return result if len(result) <= limit else f"{result[:limit-1]}…"
 
         abbreviated_count = 0
+        total_to_check = sum(
+            1 for text in self.translation_table.keys()
+            for lang in self.selected_langs
+            if lang in self.translation_table[text] and self.translation_table[text][lang]
+            and len(self.translation_table[text][lang]) > max_lengths.get(lang, max_lengths['default'])
+            and lang not in ('CHT', 'CHS', 'ZHH', 'ZHI', 'ZHM')
+        )
+        checked = 0
         for text in self.translation_table.keys():
             for lang in self.selected_langs:
                 if lang not in self.translation_table[text] or not self.translation_table[text][lang]:
@@ -1451,6 +1459,10 @@ class TranslationApp:
                     new_val = abbreviate_default(original, max_len)
                 self.translation_table[text][lang] = new_val
                 abbreviated_count += 1
+                checked += 1
+                if checked % 200 == 0:
+                    pct = round(checked / max(total_to_check, 1) * 100, 1)
+                    self.log(f"智能缩写: {pct}% ({checked}/{total_to_check})")
 
         self.log(f"智能缩写完成，共缩写 {abbreviated_count} 条翻译")
     
