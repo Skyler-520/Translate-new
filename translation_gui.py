@@ -1333,9 +1333,8 @@ class TranslationApp:
                     self.root.after(0, lambda p=current_progress, c=current_completed: self._update_progress(p, c))
                     self.log(f"进度: {current_progress}% ({current_completed}/{total_needed})")
 
-            # 智能缩写已屏蔽（翻译表与导出XML内容不一致时排查用）
-            # self.log("执行智能缩写...")
-            # self.abbreviate_translations()
+            self.log("执行智能缩写...")
+            self.abbreviate_translations()
             self.save_translation_table()
             self.root.after(0, lambda: self._update_progress(100, total_needed))
             self.log("翻译完成！")
@@ -1347,85 +1346,113 @@ class TranslationApp:
         threading.Thread(target=translate_thread, daemon=True).start()
     
     def abbreviate_translations(self):
-        """
-        智能缩写翻译结果，根据不同语言的特点进行缩写
-        """
+        import re
+
         max_lengths = {
-            'default': 200,
-            'CHT': 30, 'CHS': 30, 'ZHH': 30, 'ZHI': 30, 'ZHM': 30,
-            'JPN': 25, 'KOR': 25,
-            'ARA': 45, 'GER': 45, 'DES': 45, 'DEA': 45, 'DEL': 45, 'DEC': 45,
+            'default': 40,
+            'CHT': 28, 'CHS': 28, 'ZHH': 28, 'ZHI': 28, 'ZHM': 28,
+            'JPN': 22, 'KOR': 22,
         }
-        
-        def abbreviate_text(text, lang_code, max_len):
-            if len(text) <= max_len:
-                return text
-            
-            if lang_code in ['CHT', 'CHS', 'ZHH', 'ZHI', 'ZHM']:
-                keywords = []
-                chars = list(text)
-                for char in chars:
-                    if char in ['的', '是', '在', '和', '与', '及', '了', '有', '我', '你', '他', '她', '它']:
-                        continue
-                    keywords.append(char)
-                    if len(''.join(keywords)) >= max_len - 3:
-                        break
-                return ''.join(keywords)[:max_len-3] + '...'
-            
-            elif lang_code in ['JPN', 'KOR']:
-                return text[:max_len-3] + '...'
-            
-            elif lang_code in ['ARA']:
-                return text[:max_len-3] + '...'
-            
-            elif lang_code in ['GER', 'DES', 'DEA', 'DEL', 'DEC']:
-                import re
-                parts = re.split(r'[^a-zA-ZäöüÄÖÜß]', text)
-                abbreviated = []
-                for part in parts:
-                    if len(part) > 8:
-                        abbreviated.append(part[:5] + '.')
-                    elif part:
-                        abbreviated.append(part)
-                result = ' '.join(abbreviated)
-                return result[:max_len-3] + '...' if len(result) > max_len else result
-            
-            else:
-                words = text.split()
-                if len(words) <= 3:
-                    return text
-                
-                abbreviated = []
-                stop_words = ['and', 'or', 'the', 'a', 'an', 'is', 'are', 'be', 'to', 'of', 'for', 'in', 'on', 'at', 'with',
-                              'et', 'ou', 'le', 'la', 'les', 'un', 'une', 'des', 'est', 'sont',
-                              'y', 'o', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'es', 'son']
-                
-                for i, word in enumerate(words):
-                    if i == 0:
-                        abbreviated.append(word)
-                    elif word.lower() in stop_words:
-                        continue
-                    elif len(word) > 6:
-                        abbreviated.append(word[:4] + '.')
-                    else:
-                        abbreviated.append(word)
-                    
-                    if len(' '.join(abbreviated)) > max_len:
-                        break
-                
-                result = ' '.join(abbreviated)
-                return result[:max_len-3] + '...' if len(result) > max_len else result
-        
+
+        CN_FUNCTION_WORDS = set(
+            '的 是 在 和 与 及 了 有 我 你 他 她 它 能 可 将 已 被 从 到 对 为 于 以 此 其 该 这 那 些 等 或 但 如 若 则 因 所 并 且 而 又 也 更 最 很 太 较 稍 略 仅 只 均 皆 各 每 任 某 另 再 还 仍 尚 须 应 需 要 会 得 让 把 比 按 照 根 据 由 向 往 朝 沿 顺 随 跟 同 非 无 不 没 未 否 勿 别 莫 休 罢 着 过 起 来 去 出 入 上 下 左 右 前 后 内 外 中 间 里 边 旁 侧 底 顶 头 尾 首 末 始 终 全 整 部 分 段 节 项 条 类 种 型 式 样 法 方 式 途 径 路 线 面 体 点 位 置 处 所 场 地 域 区 范 围 界 限 度 量 数 值 参 据 信 息 号 码 标 志 记 符 名 称 编 序 代 码 键 值 组 列 表 格 框 窗 页 屏 幕 板 卡 盘 钮 键 开 关 启 停 复 重 设 置 配 选 确 取 消 删 除 增 加 修 改 更 新 换 替 转 变 化 显 示 隐 藏 查 找 搜 索 读 写 存 取 载 卸 装 连 接 断 开 通 发 送 收 受 传 输 播 放 录 记 打 印 预 览 扫 描 检 测 试 验 证 核 校 正 调 整 优 化 改 善 提 升 降 低 减 多 扩 大 缩 拉 伸 压 移 动 拖 拽 滚 翻 页 跳 转 返 回 退 进'
+        )
+
+        EN_STOP_WORDS = set(
+            'a an the and or but if is are was were be been being have has had do does did will would shall should can could may might must need want like love hate think know believe see hear feel make get give take come go use find tell ask say speak talk walk run work play start stop begin end open close save load create delete add remove set get put show hide enable disable select choose click press enter exit cancel ok yes no true false on off in at to from by for of with about above after before between under over through into onto upon within without during since until while as than up down left right back front near far all any each every some many few more most less much such other another same different new old first last next previous current default custom user system file folder directory window page menu button label text input output setting option mode state status type kind form format size color style value name number id index key code data info message error warning success fail pass result total count sum average min max low high auto manual public private local global remote main sub help tip note log view edit copy cut paste paste undo redo clear reset refresh reload search sort filter group merge split join connect disconnect attach detach lock unlock freeze thaw zoom in out expand collapse'
+        )
+
+        JP_PARTICLES = set('の は が を に へ と で から まで も など しか も か なら けれど けど し て に な だ です ます た ない ぬ ね よ わ ぁ い う え お').split()
+
+        KR_PARTICLES = set('의 에서 은 는 를 을 가 과 와 도 부터 까지 조차 만큼 처럼 보다 보다도 보다도록 보다야 보다만 보다면 보다니 보다네 보다거나 보다든지 보다라도 보다마다 보다보다 보다자마나 보다듯이 보다듯이나 보다듯이라 보다듯이라고 보다듯이라며 보다듯이라서 보다듯이라도 보다듯이면서 보다듯이지만 보다듯이어서 보다듯이어야 보다듯이었다 보다듯이었다가 보다듯이었다면 보다듯이었으나 보다듯이었으므로 보다듯이었는데 보다듯이었더라도 보다듯이었더니 보다듯이었더라고 보다듯이었더라면 보다듯이었더러서 보다듯이었더러야 보다듯이었더러니 보다듯이었더러네 보다듯이었더러거나 보다듯이었더러든지 보다듯이었더러라도 보다듯이었더러마다 보다듯이었더러보다 보다듯이었더러자마나 보다듯이었더러듯이 보다듯이었더러듯이나 보다듯이었더러듯이라 보다듯이었더러듯이라고 보다듯이었더러듯이라며 보다듯이었더러듯이라서 보다듯이었더러듯이라도 보다듯이었더러듯이면서 보다듯이었더러듯이지만 보다듯이었더러듯이어서 보다듯이었더러듯이어야 보다듯이었더러듯이었다 보다듯이었더러듯이었다가 보다듯이었더러듯이었다면 보다듯이었더러듯이었으나 보다듯이었더러듯이었으므로 보다듯이었더러듯이었는데 보다듯이었더러듯이었더라도'.split())
+
+        def abbreviate_cn(text, limit):
+            chars = list(text)
+            kept = [c for c in chars if c not in CN_FUNCTION_WORDS]
+            result = ''.join(kept)
+            if len(result) <= limit:
+                return result
+            head = result[:limit//2]
+            tail = result[-(limit//2-2):] if len(result) > limit else ''
+            return f"{head}…{tail}" if tail else f"{result[:limit-1]}…"
+
+        def abbreviate_en(text, limit):
+            words = text.split()
+            if len(words) <= 2:
+                return text[:limit] + ('...' if len(text) > limit else '')
+            kept = []
+            for i, w in enumerate(words):
+                w_lower = w.lower().rstrip('.,;:!?')
+                if i == 0:
+                    kept.append(w)
+                elif w_lower in EN_STOP_WORDS or len(w_lower) <= 1:
+                    continue
+                elif len(w) > 7:
+                    kept.append(w[:5] + '.')
+                else:
+                    kept.append(w)
+                if len(' '.join(kept)) >= limit - 3:
+                    break
+            result = ' '.join(kept)
+            if len(result) <= limit:
+                return result
+            return f"{result[:limit//2]}…{result[-(limit//2-2):]}" if len(result) > limit else f"{result[:limit-1]}…"
+
+        def abbreviate_jp(text, limit):
+            chars = list(text)
+            kept = [c for c in chars if c not in JP_PARTICLES]
+            result = ''.join(kept)
+            if len(result) <= limit:
+                return result
+            return f"{result[:limit-1]}…"
+
+        def abbreviate_kr(text, limit):
+            syllables = re.findall(r'[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]|[^\s]', text)
+            result = ''.join(syllables)
+            if len(result) <= limit:
+                return result
+            return f"{result[:limit-1]}…"
+
+        def abbreviate_default(text, limit):
+            words = text.split()
+            if len(words) <= 2:
+                return text[:limit] + ('...' if len(text) > limit else '')
+            kept = [words[0]]
+            for w in words[1:]:
+                w_clean = w.lower().rstrip('.,;:!?')
+                if w_clean in EN_STOP_WORDS or len(w_clean) <= 1:
+                    continue
+                elif len(w) > 6:
+                    kept.append(w[:4] + '.')
+                else:
+                    kept.append(w)
+                if len(' '.join(kept)) >= limit - 3:
+                    break
+            result = ' '.join(kept)
+            return result if len(result) <= limit else f"{result[:limit-1]}…"
+
         abbreviated_count = 0
         for text in self.translation_table.keys():
             for lang in self.selected_langs:
-                if lang in self.translation_table[text] and self.translation_table[text][lang]:
-                    max_len = max_lengths.get(lang, max_lengths['default'])
-                    original = self.translation_table[text][lang]
-                    if len(original) > max_len:
-                        self.translation_table[text][lang] = abbreviate_text(original, lang, max_len)
-                        abbreviated_count += 1
-        
+                if lang not in self.translation_table[text] or not self.translation_table[text][lang]:
+                    continue
+                original = self.translation_table[text][lang]
+                max_len = max_lengths.get(lang, max_lengths['default'])
+                if len(original) <= max_len:
+                    continue
+                if lang in ('CHT', 'CHS', 'ZHH', 'ZHI', 'ZHM'):
+                    new_val = abbreviate_cn(original, max_len)
+                elif lang == 'JPN':
+                    new_val = abbreviate_jp(original, max_len)
+                elif lang == 'KOR':
+                    new_val = abbreviate_kr(original, max_len)
+                elif lang in ('ENG', 'USA', 'ENA', 'ENC', 'ENZ', 'ENI', 'ENS'):
+                    new_val = abbreviate_en(original, max_len)
+                else:
+                    new_val = abbreviate_default(original, max_len)
+                self.translation_table[text][lang] = new_val
+                abbreviated_count += 1
+
         self.log(f"智能缩写完成，共缩写 {abbreviated_count} 条翻译")
     
     def _update_progress(self, progress, count):
