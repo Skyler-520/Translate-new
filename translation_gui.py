@@ -461,12 +461,13 @@ class TranslationApp:
         lang_canvas_frame.grid(row=1, column=0, sticky='nsew')
         lang_card.grid_rowconfigure(1, weight=1)
         
-        canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=340, height=180)
+        lang_canvas_h = max(280, (len(self.default_langs) // 2 + 2) * 28)
+        canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=340, height=lang_canvas_h)
         scrollbar_y = ttk.Scrollbar(lang_canvas_frame, orient='vertical', command=canvas.yview)
         scrollable_lang = ttk.Frame(canvas, style='Card.TFrame')
         
-        scrollable_lang.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-        canvas.create_window((0, 0), window=scrollable_lang, anchor='nw')
+        scrollable_lang.bind('<Configure>', lambda e: (canvas.configure(scrollregion=canvas.bbox('all')), canvas.itemconfig(1, width=e.width)))
+        canvas.create_window((0, 0), window=scrollable_lang, anchor='nw', width=340)
         canvas.configure(yscrollcommand=scrollbar_y.set)
         
         def on_mousewheel(e):
