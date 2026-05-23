@@ -310,9 +310,9 @@ class TranslationApp:
     
     def create_widgets(self):
         self.root.title("Translate Pro")
-        self.root.geometry("1280x800")
+        self.root.geometry("800x600")
         self.root.configure(bg='#F5F6FA')
-        self.root.minsize(1100, 700)
+        self.root.minsize(720, 540)
         
         style = ttk.Style()
         style.theme_use('clam')
@@ -321,31 +321,31 @@ class TranslationApp:
         style.configure('Card.TFrame', background='white')
         style.configure('Sidebar.TFrame', background='#2D2B4E')
         style.configure('Stats.TFrame', background='white')
-        style.configure('Header.TLabel', background='#2D2B4E', foreground='white', font=('Segoe UI', 11, 'bold'))
-        style.configure('Nav.TLabel', background='#2D2B4E', foreground='#A5A0C0', font=('Segoe UI', 9))
-        style.configure('NavActive.TLabel', background='#2D2B4E', foreground='white', font=('Segoe UI', 9, 'bold'))
-        style.configure('Title.TLabel', background='#F5F6FA', foreground='#2D2B4E', font=('Segoe UI', 12, 'bold'))
-        style.configure('Subtitle.TLabel', background='#F5F6FA', foreground='#6B6B8D', font=('Segoe UI', 8))
-        style.configure('StatValue.TLabel', background='white', foreground='#2D2B4E', font=('Segoe UI', 20, 'bold'))
-        style.configure('StatLabel.TLabel', background='white', foreground='#8E8EA0', font=('Segoe UI', 8))
-        style.configure('Accent.TButton', font=('Segoe UI', 9, 'bold'))
-        style.configure('TButton', font=('Segoe UI', 8), padding=4)
-        style.configure('TCheckbutton', background='#F5F6FA', font=('Segoe UI', 8))
-        style.configure('TProgressbar', thickness=6, troughcolor='#E8E8F0', background='#6C63FF')
+        style.configure('Header.TLabel', background='#2D2B4E', foreground='white', font=('Segoe UI', 10, 'bold'))
+        style.configure('Nav.TLabel', background='#2D2B4E', foreground='#A5A0C0', font=('Segoe UI', 8))
+        style.configure('NavActive.TLabel', background='#2D2B4E', foreground='white', font=('Segoe UI', 8, 'bold'))
+        style.configure('Title.TLabel', background='#F5F6FA', foreground='#2D2B4E', font=('Segoe UI', 11, 'bold'))
+        style.configure('Subtitle.TLabel', background='#F5F6FA', foreground='#6B6B8D', font=('Segoe UI', 7))
+        style.configure('StatValue.TLabel', background='white', foreground='#2D2B4E', font=('Segoe UI', 18, 'bold'))
+        style.configure('StatLabel.TLabel', background='white', foreground='#8E8EA0', font=('Segoe UI', 7))
+        style.configure('Accent.TButton', font=('Segoe UI', 8, 'bold'))
+        style.configure('TButton', font=('Segoe UI', 7), padding=3)
+        style.configure('TCheckbutton', background='#F5F6FA', font=('Segoe UI', 7))
+        style.configure('TProgressbar', thickness=4, troughcolor='#E8E8F0', background='#6C63FF')
         style.configure('Card.TLabelframe', background='white')
-        style.configure('Card.TLabelframe.Label', background='white', foreground='#2D2B4E', font=('Segoe UI', 10, 'bold'))
+        style.configure('Card.TLabelframe.Label', background='white', foreground='#2D2B4E', font=('Segoe UI', 9, 'bold'))
         
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
         
-        sidebar = ttk.Frame(self.root, style='Sidebar.TFrame', width=180)
+        sidebar = ttk.Frame(self.root, style='Sidebar.TFrame', width=150)
         sidebar.grid(row=0, column=0, sticky='ns')
         sidebar.grid_propagate(False)
         
-        ttk.Label(sidebar, text="Translate", style='Header.TLabel').pack(pady=(20, 4), anchor='w', padx=20)
-        ttk.Label(sidebar, text="Pro", style='Header.TLabel', foreground='#6C63FF').pack(anchor='w', padx=20)
+        ttk.Label(sidebar, text="Translate", style='Header.TLabel').pack(pady=(14, 2), anchor='w', padx=14)
+        ttk.Label(sidebar, text="Pro", style='Header.TLabel', foreground='#6C63FF').pack(anchor='w', padx=14)
         
-        ttk.Separator(sidebar, orient='horizontal').pack(fill='x', pady=12, padx=14)
+        ttk.Separator(sidebar, orient='horizontal').pack(fill='x', pady=8, padx=10)
         
         nav_items = [
             ("📁", "文件管理", "files"),
@@ -358,37 +358,37 @@ class TranslationApp:
         self.nav_buttons = {}
         for icon, text, name in nav_items:
             btn_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
-            btn_frame.pack(fill='x', padx=10, pady=1)
+            btn_frame.pack(fill='x', padx=6, pady=1)
             
             lbl = ttk.Label(btn_frame, text=f"{icon}  {text}", style='Nav.TLabel',
                            cursor='hand2')
-            lbl.pack(fill='x', pady=6, padx=10)
+            lbl.pack(fill='x', pady=4, padx=8)
             lbl.bind('<Enter>', lambda e, l=lbl: l.configure(style='NavActive.TLabel'))
             lbl.bind('<Leave>', lambda e, l=lbl: l.configure(style='Nav.TLabel'))
             self.nav_buttons[name] = btn_frame
         
-        ttk.Frame(sidebar, style='Sidebar.TFrame').pack(side='bottom', fill='x', pady=12)
+        ttk.Frame(sidebar, style='Sidebar.TFrame').pack(side='bottom', fill='x', pady=8)
         
         main_content = ttk.Frame(self.root, style='TFrame')
-        main_content.grid(row=0, column=1, sticky='nsew', padx=10, pady=10)
+        main_content.grid(row=0, column=1, sticky='nsew', padx=8, pady=8)
         main_content.grid_columnconfigure(0, weight=1)
         main_content.grid_rowconfigure(2, weight=1)
         
         header_frame = ttk.Frame(main_content, style='TFrame')
-        header_frame.grid(row=0, column=0, sticky='ew', pady=(0, 10))
+        header_frame.grid(row=0, column=0, sticky='ew', pady=(0, 6))
         header_frame.grid_columnconfigure(1, weight=1)
         
         ttk.Label(header_frame, text="翻译工作台", style='Title.TLabel').grid(row=0, column=0, sticky='w')
-        ttk.Label(header_frame, text="支持 XML/RES 文件 · 100+ 语言 · 智能缩写", style='Subtitle.TLabel').grid(row=1, column=0, sticky='w', pady=(1, 0))
+        ttk.Label(header_frame, text="支持 XML/RES · 100+ 语言 · 智能缩写", style='Subtitle.TLabel').grid(row=1, column=0, sticky='w', pady=(1, 0))
         
         action_frame = ttk.Frame(header_frame, style='TFrame')
         action_frame.grid(row=0, column=2, rowspan=2, sticky='e')
         
         self.start_btn = ttk.Button(action_frame, text="▶ 开始翻译", command=self.start_translation, style='Accent.TButton')
-        self.start_btn.pack(side='left', padx=3)
+        self.start_btn.pack(side='left', padx=2)
         
         self.confirm_btn = ttk.Button(action_frame, text="✓ 确认生成", command=self.confirm_and_generate, state='disabled')
-        self.confirm_btn.pack(side='left', padx=3)
+        self.confirm_btn.pack(side='left', padx=2)
         
         content_area = ttk.Frame(main_content, style='TFrame')
         content_area.grid(row=1, column=0, sticky='nsew')
@@ -396,25 +396,25 @@ class TranslationApp:
         content_area.grid_columnconfigure(1, weight=1)
         content_area.grid_rowconfigure(1, weight=1)
         
-        files_card = ttk.LabelFrame(content_area, text=" 📂 输入源文件 ", style='Card.TLabelframe', padding=8)
-        files_card.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 8))
+        files_card = ttk.LabelFrame(content_area, text=" 📂 输入源文件 ", style='Card.TLabelframe', padding=6)
+        files_card.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 6))
         files_card.grid_columnconfigure(1, weight=1)
         
         toolbar = ttk.Frame(files_card, style='Card.TFrame')
-        toolbar.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 6))
+        toolbar.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 4))
         
-        ttk.Button(toolbar, text="+ 添加文件夹", command=self.add_folder).pack(side='left', padx=2)
-        ttk.Button(toolbar, text="+ 添加文件", command=self.add_files).pack(side='left', padx=2)
-        ttk.Button(toolbar, text="DiskC 工作流", command=self.setup_diskc_sources).pack(side='left', padx=2)
-        ttk.Button(toolbar, text="移除选中", command=self.remove_files).pack(side='left', padx=2)
-        ttk.Button(toolbar, text="清空列表", command=self.clear_files).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="+ 添加文件夹", command=self.add_folder).pack(side='left', padx=1)
+        ttk.Button(toolbar, text="+ 添加文件", command=self.add_files).pack(side='left', padx=1)
+        ttk.Button(toolbar, text="DiskC 工作流", command=self.setup_diskc_sources).pack(side='left', padx=1)
+        ttk.Button(toolbar, text="移除选中", command=self.remove_files).pack(side='left', padx=1)
+        ttk.Button(toolbar, text="清空列表", command=self.clear_files).pack(side='left', padx=1)
         
         list_container = ttk.Frame(files_card, style='Card.TFrame')
         list_container.grid(row=1, column=0, columnspan=2, sticky='nsew')
         files_card.grid_rowconfigure(1, weight=1)
         
-        self.file_listbox = tk.Listbox(list_container, height=3, bg='#FAFBFE', fg='#2D2B4E',
-                                       font=('Segoe UI', 9), selectbackground='#6C63FF', selectforeground='white',
+        self.file_listbox = tk.Listbox(list_container, height=2, bg='#FAFBFE', fg='#2D2B4E',
+                                       font=('Segoe UI', 8), selectbackground='#6C63FF', selectforeground='white',
                                        borderwidth=0, highlightthickness=1, highlightbackground='#E8E8F0')
         self.file_listbox.pack(side='left', fill='both', expand=True)
         
@@ -422,37 +422,37 @@ class TranslationApp:
         file_scrollbar.pack(side='right', fill='y')
         self.file_listbox.configure(yscrollcommand=file_scrollbar.set)
         
-        lang_card = ttk.LabelFrame(content_area, text=" 🌍 目标语言 ", style='Card.TLabelframe', padding=8)
-        lang_card.grid(row=1, column=0, sticky='nsew', padx=(0, 5))
+        lang_card = ttk.LabelFrame(content_area, text=" 🌍 目标语言 ", style='Card.TLabelframe', padding=6)
+        lang_card.grid(row=1, column=0, sticky='nsew', padx=(0, 4))
         
         lang_toolbar = ttk.Frame(lang_card, style='Card.TFrame')
-        lang_toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 6))
+        lang_toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 4))
         
         self.lang_show_var = tk.BooleanVar(value=self.show_all_langs)
         ttk.Checkbutton(lang_toolbar, text="显示全部语言", variable=self.lang_show_var,
-                       command=self.toggle_lang_display).pack(side='left', padx=3)
-        ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=3)
+                       command=self.toggle_lang_display).pack(side='left', padx=2)
+        ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=2)
         
         api_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
-        api_frame.pack(side='left', padx=8)
-        ttk.Label(api_frame, text="API:", font=('Segoe UI', 8)).pack(side='left')
+        api_frame.pack(side='left', padx=6)
+        ttk.Label(api_frame, text="API:", font=('Segoe UI', 7)).pack(side='left')
         self.api_type_var = tk.StringVar(value=self.api_type)
         api_combo = ttk.Combobox(api_frame, textvariable=self.api_type_var, values=['google', 'baidu'],
-                                 state='readonly', width=7, font=('Segoe UI', 8))
-        api_combo.pack(side='left', padx=3)
+                                 state='readonly', width=6, font=('Segoe UI', 7))
+        api_combo.pack(side='left', padx=2)
         api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
         ttk.Button(api_frame, text="配置", command=self.configure_api).pack(side='left')
         
         btn_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
         btn_frame.pack(side='right')
-        ttk.Button(btn_frame, text="全选", command=self.select_all_langs).pack(side='left', padx=2)
-        ttk.Button(btn_frame, text="清空", command=self.deselect_all_langs).pack(side='left', padx=2)
+        ttk.Button(btn_frame, text="全选", command=self.select_all_langs).pack(side='left', padx=1)
+        ttk.Button(btn_frame, text="清空", command=self.deselect_all_langs).pack(side='left', padx=1)
         
         lang_canvas_frame = ttk.Frame(lang_card, style='Card.TFrame')
         lang_canvas_frame.grid(row=1, column=0, sticky='nsew')
         lang_card.grid_rowconfigure(1, weight=1)
         
-        canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=320, height=140)
+        canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=260, height=100)
         scrollbar_y = ttk.Scrollbar(lang_canvas_frame, orient='vertical', command=canvas.yview)
         scrollable_lang = ttk.Frame(canvas, style='Card.TFrame')
         
@@ -470,62 +470,62 @@ class TranslationApp:
         self.lang_frame = scrollable_lang
         
         right_panel = ttk.Frame(content_area, style='TFrame')
-        right_panel.grid(row=1, column=1, sticky='nsew', padx=(5, 0))
+        right_panel.grid(row=1, column=1, sticky='nsew', padx=(4, 0))
         right_panel.grid_rowconfigure(1, weight=1)
         
-        stats_card = ttk.LabelFrame(right_panel, text=" 📊 统计信息 ", style='Card.TLabelframe', padding=12)
-        stats_card.grid(row=0, column=0, sticky='ew', pady=(0, 8))
+        stats_card = ttk.LabelFrame(right_panel, text=" 📊 统计信息 ", style='Card.TLabelframe', padding=10)
+        stats_card.grid(row=0, column=0, sticky='ew', pady=(0, 6))
         
         self.stat_file_count = ttk.Label(stats_card, text="--", style='StatValue.TLabel')
         self.stat_file_count.pack(anchor='center')
-        ttk.Label(stats_card, text="已添加文件", style='StatLabel.TLabel').pack(anchor='center', pady=(0, 8))
+        ttk.Label(stats_card, text="已添加文件", style='StatLabel.TLabel').pack(anchor='center', pady=(0, 6))
         
         stat_mid = ttk.Frame(stats_card, style='Stats.TFrame')
-        stat_mid.pack(fill='x', pady=4)
+        stat_mid.pack(fill='x', pady=2)
         
-        self.stat_lang_count = ttk.Label(stat_mid, text="--", style='StatValue.TLabel', font=('Segoe UI', 14, 'bold'))
+        self.stat_lang_count = ttk.Label(stat_mid, text="--", style='StatValue.TLabel', font=('Segoe UI', 12, 'bold'))
         self.stat_lang_count.pack(side='left')
-        ttk.Label(stat_mid, text="\n已选语言", style='StatLabel.TLabel').pack(side='left', padx=(6, 0))
+        ttk.Label(stat_mid, text="\n已选语言", style='StatLabel.TLabel').pack(side='left', padx=(4, 0))
         
-        progress_card = ttk.LabelFrame(right_panel, text=" ⏳ 处理进度 ", style='Card.TLabelframe', padding=12)
+        progress_card = ttk.LabelFrame(right_panel, text=" ⏳ 处理进度 ", style='Card.TLabelframe', padding=10)
         progress_card.grid(row=1, column=0, sticky='nsew')
         
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(progress_card, variable=self.progress_var, maximum=100,
-                                           mode='determinate', length=180)
-        self.progress_bar.pack(fill='x', pady=(0, 6))
+                                           mode='determinate', length=140)
+        self.progress_bar.pack(fill='x', pady=(0, 4))
         
         pct_frame = ttk.Frame(progress_card, style='Stats.TFrame')
         pct_frame.pack()
-        self.progress_label = ttk.Label(pct_frame, text="0%", font=('Segoe UI', 12, 'bold'),
+        self.progress_label = ttk.Label(pct_frame, text="0%", font=('Segoe UI', 11, 'bold'),
                                         foreground='#6C63FF')
         self.progress_label.pack(side='left')
         ttk.Label(pct_frame, text="  就绪", style='Subtitle.TLabel').pack(side='left')
         
-        log_card = ttk.LabelFrame(main_content, text=" 📋 处理日志 ", style='Card.TLabelframe', padding=8)
-        log_card.grid(row=2, column=0, sticky='nsew', pady=(8, 0))
+        log_card = ttk.LabelFrame(main_content, text=" 📋 处理日志 ", style='Card.TLabelframe', padding=6)
+        log_card.grid(row=2, column=0, sticky='nsew', pady=(6, 0))
         
-        self.log_text = scrolledtext.ScrolledText(log_card, height=8, wrap=tk.WORD,
-                                                   font=('Consolas', 8), bg='#FAFBFE', fg='#4A4A68',
+        self.log_text = scrolledtext.ScrolledText(log_card, height=5, wrap=tk.WORD,
+                                                   font=('Consolas', 7), bg='#FAFBFE', fg='#4A4A68',
                                                    borderwidth=0, highlightthickness=0)
         self.log_text.pack(fill='both', expand=True)
         self.log_text.insert(tk.END, "欢迎使用 Translate Pro！\n")
         self.log_text.insert(tk.END, "请添加输入源文件并选择目标语言，然后点击「开始翻译」。\n")
         
         bottom_bar = ttk.Frame(main_content, style='TFrame')
-        bottom_bar.grid(row=3, column=0, sticky='ew', pady=(8, 0))
+        bottom_bar.grid(row=3, column=0, sticky='ew', pady=(6, 0))
         
         self.pack_var = tk.BooleanVar()
-        ttk.Checkbutton(bottom_bar, text="打包为 .res", variable=self.pack_var).pack(side='left', padx=6)
+        ttk.Checkbutton(bottom_bar, text="打包为 .res", variable=self.pack_var).pack(side='left', padx=4)
         
-        ttk.Separator(bottom_bar, orient='vertical').pack(side='left', fill='y', padx=8, pady=3)
+        ttk.Separator(bottom_bar, orient='vertical').pack(side='left', fill='y', padx=6, pady=2)
         
-        ttk.Button(bottom_bar, text="查看翻译表", command=self.view_translation_table).pack(side='left', padx=3)
-        ttk.Button(bottom_bar, text="导出 Excel", command=self.export_to_excel).pack(side='left', padx=3)
-        ttk.Button(bottom_bar, text="导入 Excel", command=self.import_from_excel).pack(side='left', padx=3)
-        ttk.Button(bottom_bar, text="导出日志", command=self.export_log).pack(side='left', padx=3)
+        ttk.Button(bottom_bar, text="查看翻译表", command=self.view_translation_table).pack(side='left', padx=2)
+        ttk.Button(bottom_bar, text="导出 Excel", command=self.export_to_excel).pack(side='left', padx=2)
+        ttk.Button(bottom_bar, text="导入 Excel", command=self.import_from_excel).pack(side='left', padx=2)
+        ttk.Button(bottom_bar, text="导出日志", command=self.export_log).pack(side='left', padx=2)
         
-        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=200)
+        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=170)
         stats_panel.grid(row=0, column=2, sticky='ns', padx=(0, 16), pady=16)
         stats_panel.grid_propagate(False)
         
