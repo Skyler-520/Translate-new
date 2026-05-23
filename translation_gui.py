@@ -221,7 +221,8 @@ class TranslationApp:
         
         # 初始化实例变量
         self.source_files = []           # 源文件列表
-        self.source_folder = ""         # 源文件夹路径
+        self.source_folder = ""         # 源文件夹路径（CLI兼容）
+        self.source_folders = []        # 已添加的文件夹路径列表（统一UI）
         self.selected_langs = []        # 选中的语言列表
         self.translation_table = {}     # 翻译表字典
         self.output_dir = os.path.dirname(os.path.abspath(__file__))  # 输出目录
@@ -319,44 +320,32 @@ class TranslationApp:
         
         row = 0
         
-        # 输入源选择区域
+        # 输入源选择区域（统一界面，支持文件夹和文件混合添加）
         ttk.Label(main_frame, text="输入源:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="(XML/RES文件及文件夹，可混合添加，支持多选)").grid(row=row, column=1, sticky=tk.W, pady=5)
         row += 1
         
-        input_frame = ttk.Frame(main_frame)
-        input_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E))
+        # 统一工具栏
+        toolbar_frame = ttk.Frame(main_frame)
+        toolbar_frame.grid(row=row, column=0, columnspan=3, sticky=tk.W)
         
-        self.input_mode_var = tk.StringVar(value='folder')
-        ttk.Radiobutton(input_frame, text="选择文件夹", variable=self.input_mode_var, 
-                        value='folder', command=self.switch_input_mode).pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(input_frame, text="选择文件", variable=self.input_mode_var, 
-                        value='files', command=self.switch_input_mode).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar_frame, text="添加文件夹", command=self.add_folder).pack(side=tk.LEFT, padx=3)
+        ttk.Button(toolbar_frame, text="添加文件", command=self.add_files).pack(side=tk.LEFT, padx=3)
+        ttk.Button(toolbar_frame, text="DiskC工作流", command=self.setup_diskc_sources).pack(side=tk.LEFT, padx=3)
+        ttk.Button(toolbar_frame, text="刷新", command=self.refresh_file_list).pack(side=tk.LEFT, padx=3)
+        ttk.Button(toolbar_frame, text="移除", command=self.remove_files).pack(side=tk.LEFT, padx=3)
+        ttk.Button(toolbar_frame, text="清空", command=self.clear_files).pack(side=tk.LEFT, padx=3)
         row += 1
         
-        self.folder_entry = ttk.Entry(main_frame, width=80)
-        self.folder_entry.grid(row=row, column=0, sticky=(tk.W, tk.E), padx=5)
-        self.folder_entry.insert(0, self.source_folder)
+        # 文件列表（显示所有已添加的源文件，带类型标识）
+        list_frame = ttk.Frame(main_frame)
+        list_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
         
-        folder_button_frame = ttk.Frame(main_frame)
-        folder_button_frame.grid(row=row, column=1, sticky=tk.W)
-        
-        ttk.Button(folder_button_frame, text="浏览", command=self.select_source_folder).pack(side=tk.LEFT, padx=5)
-        ttk.Button(folder_button_frame, text="刷新", command=self.refresh_file_list).pack(side=tk.LEFT, padx=5)
-        ttk.Button(folder_button_frame, text="DiskC工作流", command=self.setup_diskc_sources).pack(side=tk.LEFT, padx=5)
-        row += 1
-        
-        # 文件列表
-        self.file_listbox = tk.Listbox(main_frame, width=100, height=5)
-        self.file_listbox.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
-        row += 1
-        
-        # 文件操作按钮
-        file_button_frame = ttk.Frame(main_frame)
-        file_button_frame.grid(row=row, column=0, columnspan=3, sticky=tk.W)
-        
-        ttk.Button(file_button_frame, text="添加文件", command=self.add_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(file_button_frame, text="移除文件", command=self.remove_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(file_button_frame, text="清空列表", command=self.clear_files).pack(side=tk.LEFT, padx=5)
+        self.file_listbox = tk.Listbox(list_frame, width=100, height=5)
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.file_listbox.yview)
+        self.file_listbox.configure(yscrollcommand=scrollbar.set)
+        self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         row += 1
         
         # 语言选择区域
@@ -451,64 +440,49 @@ class TranslationApp:
         # 更新语言显示
         self.update_lang_display()
     
-    def switch_input_mode(self):
-        """
-        切换输入模式（文件夹/文件）
-        清空当前文件列表和文件夹路径
-        """
-        self.source_files = []
-        self.file_listbox.delete(0, tk.END)
-        self.folder_entry.delete(0, tk.END)
-        self.source_folder = ""
-    
-    def select_source_folder(self):
-        """
-        选择输入源（文件夹或文件）
-        根据当前输入模式执行不同操作，自动设置输出目录为输入源的上一级目录
-        支持XML文件和RES文件（自动解压）
-        """
-        if self.input_mode_var.get() == 'folder':
-            folder = filedialog.askdirectory(title="选择输入文件夹")
-            if folder:
-                self.source_folder = folder
-                self.folder_entry.delete(0, tk.END)
-                self.folder_entry.insert(0, folder)
-                # 设置输出目录为输入文件夹的上一级目录
-                self.output_dir = os.path.dirname(folder)
-                self.log(f"输出目录已设置为: {self.output_dir}")
-                self.refresh_file_list()
-        else:
-            files = filedialog.askopenfilenames(title="选择XML或RES文件", filetypes=[("XML文件", "*.xml"), ("RES文件", "*.res"), ("所有文件", "*.*")])
-            if files:
-                # 设置输出目录为第一个文件所在目录的上一级目录
-                first_file_dir = os.path.dirname(files[0])
-                self.output_dir = os.path.dirname(first_file_dir)
-                self.log(f"输出目录已设置为: {self.output_dir}")
+    def add_folder(self):
+        folder = filedialog.askdirectory(title="选择输入文件夹")
+        if not folder:
+            return
+        self.source_folders.append(folder)
+        if not self.source_files:
+            self.output_dir = os.path.dirname(folder)
+            self.log(f"输出目录已设置为: {self.output_dir}")
+        count = 0
+        for root_dir, dirs, files in os.walk(folder):
             for file in files:
-                prepared = self.prepare_file(file)
+                file_path = os.path.join(root_dir, file)
+                prepared = self.prepare_file(file_path)
                 if prepared and prepared not in self.source_files:
                     self.source_files.append(prepared)
-                    self.file_listbox.insert(tk.END, prepared)
-                else:
-                    # 若无法准备（例如解压失败或不支持），记录并跳过
-                    self.log(f"跳过文件: {file}")
-    
+                    tag = self._file_tag(prepared)
+                    self.file_listbox.insert(tk.END, f"{tag} {prepared}")
+                    count += 1
+        self.log(f"从文件夹添加 {count} 个文件: {folder}")
+
     def refresh_file_list(self):
-        """
-        刷新文件列表
-        扫描源文件夹中的所有XML和RES文件
-        """
         self.source_files = []
         self.file_listbox.delete(0, tk.END)
-        if self.source_folder and os.path.isdir(self.source_folder):
-            for root_dir, dirs, files in os.walk(self.source_folder):
-                for file in files:
-                    file_path = os.path.join(root_dir, file)
-                    prepared = self.prepare_file(file_path)
-                    if prepared:
-                        self.source_files.append(prepared)
-                        self.file_listbox.insert(tk.END, prepared)
-            self.log(f"已扫描到 {len(self.source_files)} 个可处理文件（XML/RES）")
+        all_folders = list(self.source_folders)
+        if self.source_folder and self.source_folder not in all_folders:
+            all_folders.append(self.source_folder)
+        if not all_folders:
+            self.log("无已添加文件夹，请先添加文件夹或文件")
+            return
+        for folder in all_folders:
+            if os.path.isdir(folder):
+                count = 0
+                for root_dir, dirs, files in os.walk(folder):
+                    for file in files:
+                        file_path = os.path.join(root_dir, file)
+                        prepared = self.prepare_file(file_path)
+                        if prepared and prepared not in self.source_files:
+                            self.source_files.append(prepared)
+                            tag = self._file_tag(prepared)
+                            self.file_listbox.insert(tk.END, f"{tag} {prepared}")
+                            count += 1
+                self.log(f"刷新文件夹: {os.path.basename(folder)} → {count} 个文件")
+        self.log(f"总计扫描到 {len(self.source_files)} 个可处理文件")
 
     def setup_diskc_sources(self, diskc_root=None):
         if diskc_root is None:
@@ -523,8 +497,7 @@ class TranslationApp:
         self.diskc_xml_map = {}
         self.source_files = []
         self.file_listbox.delete(0, tk.END)
-        self.folder_entry.delete(0, tk.END)
-        self.folder_entry.insert(0, diskc_root)
+        self.source_folders = []
         self.source_folder = diskc_root
         self.output_dir = diskc_root
 
@@ -610,23 +583,39 @@ class TranslationApp:
             return None
     
     def add_files(self):
-        """
-        添加文件到列表
-        通过文件对话框选择多个XML或RES文件，自动设置输出目录为第一个文件所在目录的上一级目录
-        """
-        files = filedialog.askopenfilenames(title="选择XML或RES文件", filetypes=[("XML文件", "*.xml"), ("RES文件", "*.res"), ("所有文件", "*.*")])
-        if files and not self.source_files:
-            # 如果是第一次添加文件，设置输出目录为第一个文件所在目录的上一级目录
+        files = filedialog.askopenfilenames(title="选择XML或RES文件",
+            filetypes=[("支持的源文件", "*.xml;*.res"), ("XML文件", "*.xml"), ("RES文件", "*.res"), ("所有文件", "*.*")])
+        if not files:
+            return
+        if not self.source_files:
             first_file_dir = os.path.dirname(files[0])
             self.output_dir = os.path.dirname(first_file_dir)
             self.log(f"输出目录已设置为: {self.output_dir}")
+        count = 0
         for file in files:
             prepared = self.prepare_file(file)
             if prepared and prepared not in self.source_files:
                 self.source_files.append(prepared)
-                self.file_listbox.insert(tk.END, prepared)
+                tag = self._file_tag(prepared)
+                self.file_listbox.insert(tk.END, f"{tag} {prepared}")
+                count += 1
             else:
                 self.log(f"跳过文件: {file}")
+        if count:
+            self.log(f"添加 {count} 个文件")
+
+    @staticmethod
+    def _file_tag(file_path):
+        lower = file_path.lower()
+        if lower.endswith('.res'):
+            return '[RES]'
+        elif '_res_converted' in lower:
+            return '[RES→XML]'
+        elif lower.endswith('.xml'):
+            return '[XML]'
+        elif not os.path.splitext(file_path)[1]:
+            return '[无后缀]'
+        return '[?]'
     
     def remove_files(self):
         """
@@ -638,11 +627,9 @@ class TranslationApp:
             del self.source_files[idx]
     
     def clear_files(self):
-        """
-        清空文件列表
-        """
         self.file_listbox.delete(0, tk.END)
         self.source_files = []
+        self.source_folders = []
     
     def toggle_lang_display(self):
         """
@@ -1247,7 +1234,7 @@ class TranslationApp:
         """
         # 检查输入
         if not self.source_files:
-            msg = "请先选择XML源文件或文件夹"
+            msg = "请先添加文件或文件夹，或点击DiskC工作流"
             if self.headless:
                 self.log(f"错误: {msg}")
                 if self.logger:
