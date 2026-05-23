@@ -453,6 +453,30 @@ class TranslationApp:
                        command=self.toggle_lang_display).pack(side='left', padx=4)
         ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=4)
         
+        search_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
+        search_frame.pack(side='left', padx=(12, 0), fill='x', expand=True)
+        
+        self.lang_search_var = tk.StringVar()
+        self.lang_search_entry = ttk.Entry(search_frame, textvariable=self.lang_search_var,
+                                            font=('Segoe UI', 9), width=18)
+        self.lang_search_entry.pack(side='left', fill='x', expand=True, ipady=3)
+        self.lang_search_entry.insert(0, "🔍 搜索语言...")
+        self.lang_search_var.trace_add('write', lambda *a: self.on_lang_search())
+        
+        def on_search_focus_in(e):
+            if self.lang_search_entry.get() == "🔍 搜索语言...":
+                self.lang_search_entry.delete(0, tk.END)
+                self.lang_search_entry.configure(foreground='#2D2B4E')
+        
+        def on_search_focus_out(e):
+            if not self.lang_search_var.get().strip():
+                self.lang_search_entry.insert(0, "🔍 搜索语言...")
+                self.lang_search_entry.configure(foreground='#8E8EA0')
+        
+        self.lang_search_entry.bind('<FocusIn>', on_search_focus_in)
+        self.lang_search_entry.bind('<FocusOut>', on_search_focus_out)
+        self.lang_search_entry.configure(foreground='#8E8EA0')
+        
         btn_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
         btn_frame.pack(side='right')
         ttk.Button(btn_frame, text="全选", command=self.select_all_langs).pack(side='left', padx=2)
@@ -806,6 +830,23 @@ class TranslationApp:
         if hasattr(self, 'stats_refs') and 'shared' in self.stats_refs:
             total = len(self.translation_table)
             self.stats_refs['shared'].configure(text=str(total))
+    
+    def on_lang_search(self):
+        keyword = self.lang_search_var.get().strip().lower()
+        if not keyword or keyword == "🔍 搜索语言...":
+            for widget in self.lang_frame.winfo_children():
+                widget.grid()
+            return
+        for widget in self.lang_frame.winfo_children():
+            text = ""
+            for child in widget.winfo_children():
+                if isinstance(child, ttk.Checkbutton):
+                    text = child.cget('text').lower()
+                    break
+            if keyword in text:
+                widget.grid()
+            else:
+                widget.grid_remove()
     
     def select_all_langs(self):
         """
