@@ -461,19 +461,19 @@ class TranslationApp:
         lang_canvas_frame.grid(row=1, column=0, sticky='nsew')
         lang_card.grid_rowconfigure(1, weight=1)
         
-        self.lang_canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=340)
-        scrollbar_y = ttk.Scrollbar(lang_canvas_frame, orient='vertical', command=self.lang_canvas.yview)
-        scrollable_lang = ttk.Frame(self.lang_canvas, style='Card.TFrame')
+        canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=340, height=260)
+        scrollbar_y = ttk.Scrollbar(lang_canvas_frame, orient='vertical', command=canvas.yview)
+        scrollable_lang = ttk.Frame(canvas, style='Card.TFrame')
         
-        scrollable_lang.bind('<Configure>', self._on_lang_resize)
-        self.lang_canvas.create_window((0, 0), window=scrollable_lang, anchor='nw')
-        self.lang_canvas.configure(yscrollcommand=scrollbar_y.set)
+        scrollable_lang.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.create_window((0, 0), window=scrollable_lang, anchor='nw')
+        canvas.configure(yscrollcommand=scrollbar_y.set)
         
         def on_mousewheel(e):
-            self.lang_canvas.yview_scroll(int(-1 * (e.delta / 120)), 'units')
-        self.lang_canvas.bind_all('<MouseWheel>', on_mousewheel, add='+')
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), 'units')
+        canvas.bind_all('<MouseWheel>', on_mousewheel, add='+')
         
-        self.lang_canvas.pack(side='left', fill='both', expand=True)
+        canvas.pack(side='left', fill='both', expand=True)
         scrollbar_y.pack(side='right', fill='y')
         
         self.lang_frame = scrollable_lang
@@ -789,7 +789,7 @@ class TranslationApp:
             chk.grid(row=row_lang, column=col, sticky=tk.W, padx=5, pady=2)
             self.lang_vars[lang] = var
             col += 1
-            if col >= 4:
+            if col >= 2:
                 col = 0
                 row_lang += 1
         
@@ -805,15 +805,6 @@ class TranslationApp:
         if hasattr(self, 'stats_refs') and 'shared' in self.stats_refs:
             total = len(self.translation_table)
             self.stats_refs['shared'].configure(text=str(total))
-    
-    def _on_lang_resize(self, event):
-        if not hasattr(self, 'lang_canvas'):
-            return
-        self.lang_canvas.configure(scrollregion=self.lang_canvas.bbox('all'))
-        req_h = self.lang_frame.winfo_reqheight()
-        max_h = 320
-        new_h = min(req_h, max_h)
-        self.lang_canvas.configure(height=new_h)
     
     def select_all_langs(self):
         """
