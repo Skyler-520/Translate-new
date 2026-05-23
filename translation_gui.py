@@ -193,6 +193,12 @@ class TranslationApp:
         self.headless = False  # 是否为无界面模式（命令行）
         self.logger = None
         
+        # DiskC工作流模式
+        self.diskc_mode = False       # 是否为DiskC工作流模式
+        self.diskc_root = ""          # DiskC根目录路径
+        self.diskc_res_source = ""    # CHS.res解压后的prepared路径
+        self.diskc_xml_map = {}       # prepared_path -> 相对于String目录的子路径
+        
         # API配置变量
         self.api_type = 'google'  # 当前使用的翻译API类型：google 或 baidu
         self.baidu_app_id = ''   # 百度翻译API App ID
@@ -297,6 +303,7 @@ class TranslationApp:
         
         ttk.Button(folder_button_frame, text="浏览", command=self.select_source_folder).pack(side=tk.LEFT, padx=5)
         ttk.Button(folder_button_frame, text="刷新", command=self.refresh_file_list).pack(side=tk.LEFT, padx=5)
+        ttk.Button(folder_button_frame, text="DiskC工作流", command=self.setup_diskc_sources).pack(side=tk.LEFT, padx=5)
         row += 1
         
         # 文件列表
@@ -463,6 +470,57 @@ class TranslationApp:
                         self.source_files.append(prepared)
                         self.file_listbox.insert(tk.END, prepared)
             self.log(f"已扫描到 {len(self.source_files)} 个可处理文件（XML/RES）")
+
+    def setup_diskc_sources(self, diskc_root=None):
+        if diskc_root is None:
+            folder = filedialog.askdirectory(title="选择DiskC根目录")
+            if not folder:
+                return
+            diskc_root = folder
+
+        self.diskc_root = diskc_root
+        self.diskc_mode = True
+        self.diskc_res_source = ""
+        self.diskc_xml_map = {}
+        self.source_files = []
+        self.file_listbox.delete(0, tk.END)
+        self.folder_entry.delete(0, tk.END)
+        self.folder_entry.insert(0, diskc_root)
+        self.source_folder = diskc_root
+        self.output_dir = diskc_root
+
+        res_path = os.path.join(diskc_root, 'OpenCNC', 'Bin', 'Language', 'CHS.res')
+        prepared_res = self.prepare_file(res_path)
+        if prepared_res:
+            self.diskc_res_source = prepared_res
+            self.source_files.append(prepared_res)
+            self.file_listbox.insert(tk.END, f"[RES] {os.path.basename(res_path)} -> {prepared_res}")
+            self.log(f"DiskC工作流: 加载 {res_path}")
+        else:
+            self.log(f"DiskC工作流: 未找到 {res_path}")
+
+        string_dir = os.path.join(diskc_root, 'OpenCnc Shared', 'OCRes', 'CHS', 'String')
+        if os.path.isdir(string_dir):
+            xml_count = 0
+            for root_dir, dirs, files in os.walk(string_dir):
+                for file in files:
+                    if file.lower().endswith('.xml'):
+                        full_path = os.path.join(root_dir, file)
+                        prepared = self.prepare_file(full_path)
+                        if prepared:
+                            rel_path = os.path.relpath(prepared, string_dir)
+                            self.diskc_xml_map[prepared] = rel_path
+                            self.source_files.append(prepared)
+                            self.file_listbox.insert(tk.END, f"[XML] String/{rel_path}")
+                            xml_count += 1
+            self.log(f"DiskC工作流: 从String目录加载 {xml_count} 个XML文件")
+        else:
+            self.log(f"DiskC工作流: 未找到目录 {string_dir}")
+
+        msg = f"DiskC工作流已就绪: {len(self.source_files)} 个文件"
+        if not self.headless:
+            messagebox.showinfo("DiskC工作流", msg)
+        self.log(msg)
 
     def prepare_file(self, file_path):
         """
@@ -1421,31 +1479,44 @@ class TranslationApp:
                 else:
                     base_name = file_name
 
+                is_diskc_res = self.diskc_mode and xml_file == self.diskc_res_source
+                is_diskc_xml = self.diskc_mode and xml_file in self.diskc_xml_map
+
                 # 为每种选中的语言生成XML文件
                 for lang in self.selected_langs:
-                    xml_output_path = os.path.join(self.output_dir, lang, 'String', base_name + '.xml')
-                    os.makedirs(os.path.dirname(xml_output_path), exist_ok=True)
+                    if is_diskc_res:
+                        language_dir = os.path.join(self.diskc_root, 'OpenCNC', 'Bin', 'Language')
+                        os.makedirs(language_dir, exist_ok=True)
+                        xml_output_path = os.path.join(language_dir, lang)
+                        pack_after_write = True
+                    elif is_diskc_xml:
+                        rel_path = self.diskc_xml_map[xml_file]
+                        lang_dir = os.path.join(self.diskc_root, 'OpenCnc Shared', 'OCRes', lang)
+                        os.makedirs(os.path.join(lang_dir, os.path.dirname(rel_path)), exist_ok=True)
+                        xml_output_path = os.path.join(lang_dir, rel_path)
+                        pack_after_write = False
+                    else:
+                        xml_output_path = os.path.join(self.output_dir, lang, 'String', base_name + '.xml')
+                        os.makedirs(os.path.dirname(xml_output_path), exist_ok=True)
+                        pack_after_write = self.pack_var.get()
 
                     lines = []
                     lines.append('<?xml version="1.0" encoding="utf-8"?>')
                     lines.append('<ResMap>')
 
                     for msg_id, original_content in messages:
-                        # 获取翻译内容
                         if original_content in self.translation_table and lang in self.translation_table[original_content]:
                             translated = self.translation_table[original_content][lang]
                             content_val = translated if translated and translated != original_content else original_content
                         else:
                             content_val = original_content
 
-                        # 处理换行符与引号转义
                         content_val = content_val.replace('\n', '&#xA;')
                         content_val = content_val.replace('"', '&quot;')
                         lines.append(f'\t<Message ID="{msg_id}" Content="{content_val}" />')
 
                     lines.append('</ResMap>')
 
-                    # 写入XML文件（带.xml后缀）
                     try:
                         with open(xml_output_path, 'w', encoding='utf-8') as f_out:
                             f_out.write('\n'.join(lines))
@@ -1455,25 +1526,19 @@ class TranslationApp:
                         if self.logger:
                             self.logger.exception(write_e)
 
-                    # 如果勾选了打包选项，创建无后缀副本并打包为.res
-                    if self.pack_var.get():
-                        noext_path = os.path.join(self.output_dir, lang, 'String', base_name)
-                        try:
-                            import shutil
-                            shutil.copy2(xml_output_path, noext_path)
-                            self.log(f"创建无后缀副本: {noext_path}")
-                        except Exception as copy_e:
-                            self.log(f"创建无后缀副本失败: {copy_e}")
-                            if self.logger:
-                                self.logger.exception(copy_e)
-                        self.pack_to_res(noext_path)
+                    if pack_after_write:
+                        self.pack_to_res(xml_output_path)
             except Exception as e:
                 self.log(f"生成XML失败: {e}")
                 if self.logger:
                     self.logger.exception(e)
         
         self.log("所有XML文件已生成完成！")
-        if self.pack_var.get():
+        if self.diskc_mode:
+            messagebox.showinfo("完成", f"DiskC工作流处理完成！\n"
+                                f"RES文件已打包至: OpenCNC/Bin/Language/\n"
+                                f"XML文件已输出至: OpenCnc Shared/OCRes/")
+        elif self.pack_var.get():
             messagebox.showinfo("完成", "XML文件已成功生成并打包为.res文件！")
         else:
             messagebox.showinfo("完成", "XML文件已成功生成！")
@@ -1671,11 +1736,12 @@ if __name__ == '__main__':
     parser.add_argument('--output', '-o', help='输出目录（默认为脚本目录）')
     parser.add_argument('--langs', help='逗号分隔的目标语言缩写（例如: CHS,ENG）')
     parser.add_argument('--pack', action='store_true', help='处理后是否打包为.res')
+    parser.add_argument('--diskc', help='DiskC工作流模式: 指定DiskC根目录路径')
     parser.add_argument('--log', help='将详细日志写入指定文件')
     parser.add_argument('--nogui', action='store_true', help='无界面模式（仅命令行）')
     args = parser.parse_args()
 
-    if args.nogui or args.input:
+    if args.nogui or args.input or args.diskc:
         # headless / CLI 模式
         root = tk.Tk()
         root.withdraw()
@@ -1701,7 +1767,14 @@ if __name__ == '__main__':
             app.selected_langs = app.default_langs.copy()
 
         # 准备输入文件列表
-        if args.input:
+        if args.diskc:
+            if os.path.isdir(args.diskc):
+                app.log(f'DiskC工作流模式: {args.diskc}')
+                app.setup_diskc_sources(args.diskc)
+            else:
+                app.log(f'DiskC路径无效: {args.diskc}')
+                exit(1)
+        elif args.input:
             if os.path.isdir(args.input) and args.mode == 'batch':
                 app.source_folder = args.input
                 app.refresh_file_list()
