@@ -332,7 +332,6 @@ class TranslationApp:
         ttk.Button(toolbar_frame, text="添加文件夹", command=self.add_folder).pack(side=tk.LEFT, padx=3)
         ttk.Button(toolbar_frame, text="添加文件", command=self.add_files).pack(side=tk.LEFT, padx=3)
         ttk.Button(toolbar_frame, text="DiskC工作流", command=self.setup_diskc_sources).pack(side=tk.LEFT, padx=3)
-        ttk.Button(toolbar_frame, text="刷新", command=self.refresh_file_list).pack(side=tk.LEFT, padx=3)
         ttk.Button(toolbar_frame, text="移除", command=self.remove_files).pack(side=tk.LEFT, padx=3)
         ttk.Button(toolbar_frame, text="清空", command=self.clear_files).pack(side=tk.LEFT, padx=3)
         row += 1
