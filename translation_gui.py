@@ -1267,10 +1267,8 @@ class TranslationApp:
         
         # 创建翻译线程
         def translate_thread():
-            count = 0
-            processed = 0
-            
-            # 只处理需要翻译的文本对
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
             texts_to_translate = []
             for text in self.translation_table.keys():
                 for lang in self.selected_langs:
@@ -1278,24 +1276,36 @@ class TranslationApp:
                         self.translation_table[text][lang] = ''
                     if not self.translation_table[text][lang] or self.translation_table[text][lang] == text:
                         texts_to_translate.append((text, lang))
-            
-            for text, lang in texts_to_translate:
-                translated = self.translate_text(text, LANG_MAP[lang]['code'])
-                self.translation_table[text][lang] = translated
-                count += 1
-                processed += 1
-                
-                # 每处理5条更新一次进度
-                if processed % 5 == 0:
-                    self.save_translation_table()
-                    progress = round(count / total_needed * 100, 1)
-                    # 使用root.after在主线程中更新UI
-                    self.root.after(0, lambda p=progress, c=count: self._update_progress(p, c))
-                    self.log(f"进度: {progress}% ({count}/{total_needed})")
-                
-                time.sleep(0.1)
-            
-            # 完成翻译，执行智能缩写
+
+            completed = 0
+            lock = threading.Lock()
+
+            def translate_one(item):
+                text, lang = item
+                result = self.translate_text(text, LANG_MAP[lang]['code'])
+                return text, lang, result
+
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {executor.submit(translate_one, item): item for item in texts_to_translate}
+                for future in as_completed(futures):
+                    text, lang, result = future.result()
+                    current_completed = 0
+                    current_progress = 0.0
+                    should_save = False
+                    with lock:
+                        self.translation_table[text][lang] = result
+                        completed += 1
+                        current_completed = completed
+                        current_progress = round(completed / total_needed * 100, 1)
+                        if completed % 50 == 0:
+                            should_save = True
+
+                    if should_save:
+                        self.save_translation_table()
+
+                    self.root.after(0, lambda p=current_progress, c=current_completed: self._update_progress(p, c))
+                    self.log(f"进度: {current_progress}% ({current_completed}/{total_needed})")
+
             self.log("执行智能缩写...")
             self.abbreviate_translations()
             self.save_translation_table()
