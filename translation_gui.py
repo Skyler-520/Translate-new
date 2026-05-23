@@ -1648,14 +1648,48 @@ class TranslationApp:
                     self.logger.exception(e)
         
         self.log("所有XML文件已生成完成！")
+        
+        self._cleanup_temp_files()
+        
         if self.diskc_mode:
             messagebox.showinfo("完成", f"DiskC工作流处理完成！\n"
                                 f"RES文件已打包至: OpenCNC/Bin/Language/\n"
-                                f"XML文件已输出至: OpenCnc Shared/OCRes/")
+                                f"XML文件已输出至: OpenCnc Shared/OCRes/\n"
+                                f"临时文件已清理")
         elif self.pack_var.get():
-            messagebox.showinfo("完成", "XML文件已成功生成并打包为.res文件！")
+            messagebox.showinfo("完成", "XML文件已成功生成并打包为.res文件！\n临时文件已清理")
         else:
-            messagebox.showinfo("完成", "XML文件已成功生成！")
+            messagebox.showinfo("完成", "XML文件已成功生成！\n临时文件已清理")
+    
+    def _cleanup_temp_files(self):
+        import shutil
+        
+        self.log("开始清理临时文件...")
+        
+        conv_dir = os.path.join(self.output_dir, '_res_converted')
+        if os.path.exists(conv_dir):
+            try:
+                shutil.rmtree(conv_dir)
+                self.log(f"已删除: {conv_dir}")
+            except Exception as e:
+                self.log(f"删除失败: {conv_dir} -> {e}")
+        
+        if self.diskc_mode and self.diskc_root:
+            lang_dir = os.path.join(self.diskc_root, 'OpenCNC', 'Bin', 'Language')
+            if os.path.isdir(lang_dir):
+                deleted_count = 0
+                for f in os.listdir(lang_dir):
+                    fp = os.path.join(lang_dir, f)
+                    if os.path.isfile(fp) and not os.path.splitext(fp)[1]:
+                        try:
+                            os.remove(fp)
+                            deleted_count += 1
+                        except Exception as e:
+                            self.log(f"删除失败: {fp} -> {e}")
+                if deleted_count > 0:
+                    self.log(f"已删除 Language 目录下 {deleted_count} 个无后缀文件")
+        
+        self.log("临时文件清理完成")
     
     def pack_to_res(self, xml_file_path):
         """
