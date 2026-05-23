@@ -309,134 +309,266 @@ class TranslationApp:
             json.dump(config, f, ensure_ascii=False, indent=2)
     
     def create_widgets(self):
-        """
-        创建用户界面组件
-        包括输入源选择、语言选择、输出目录、进度条、日志等
-        """
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.root.title("Translate Pro")
+        self.root.geometry("1280x850")
+        self.root.configure(bg='#F5F6FA')
         
-        row = 0
+        style = ttk.Style()
+        style.theme_use('clam')
         
-        # 输入源选择区域（统一界面，支持文件夹和文件混合添加）
-        ttk.Label(main_frame, text="输入源:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Label(main_frame, text="(XML/RES文件及文件夹，可混合添加，支持多选)").grid(row=row, column=1, sticky=tk.W, pady=5)
-        row += 1
+        style.configure('TFrame', background='#F5F6FA')
+        style.configure('Card.TFrame', background='white')
+        style.configure('Sidebar.TFrame', background='#2D2B4E')
+        style.configure('Stats.TFrame', background='white')
+        style.configure('Header.TLabel', background='#2D2B4E', foreground='white', font=('Segoe UI', 11, 'bold'))
+        style.configure('Nav.TLabel', background='#2D2B4E', foreground='#A5A0C0', font=('Segoe UI', 10))
+        style.configure('NavActive.TLabel', background='#2D2B4E', foreground='white', font=('Segoe UI', 10, 'bold'))
+        style.configure('Title.TLabel', background='#F5F6FA', foreground='#2D2B4E', font=('Segoe UI', 13, 'bold'))
+        style.configure('Subtitle.TLabel', background='#F5F6FA', foreground='#6B6B8D', font=('Segoe UI', 9))
+        style.configure('StatValue.TLabel', background='white', foreground='#2D2B4E', font=('Segoe UI', 24, 'bold'))
+        style.configure('StatLabel.TLabel', background='white', foreground='#8E8EA0', font=('Segoe UI', 9))
+        style.configure('Accent.TButton', font=('Segoe UI', 10, 'bold'))
+        style.configure('TButton', font=('Segoe UI', 9), padding=6)
+        style.configure('TCheckbutton', background='#F5F6FA', font=('Segoe UI', 9))
+        style.configure('TProgressbar', thickness=8, troughcolor='#E8E8F0', background='#6C63FF')
+        style.configure('Card.TLabelframe', background='white')
+        style.configure('Card.TLabelframe.Label', background='white', foreground='#2D2B4E', font=('Segoe UI', 11, 'bold'))
         
-        # 统一工具栏
-        toolbar_frame = ttk.Frame(main_frame)
-        toolbar_frame.grid(row=row, column=0, columnspan=3, sticky=tk.W)
+        self.root.grid_columnconfigure(1, weight=1)
+        self.root.grid_rowconfigure(0, weight=1)
         
-        ttk.Button(toolbar_frame, text="添加文件夹", command=self.add_folder).pack(side=tk.LEFT, padx=3)
-        ttk.Button(toolbar_frame, text="添加文件", command=self.add_files).pack(side=tk.LEFT, padx=3)
-        ttk.Button(toolbar_frame, text="DiskC工作流", command=self.setup_diskc_sources).pack(side=tk.LEFT, padx=3)
-        ttk.Button(toolbar_frame, text="移除", command=self.remove_files).pack(side=tk.LEFT, padx=3)
-        ttk.Button(toolbar_frame, text="清空", command=self.clear_files).pack(side=tk.LEFT, padx=3)
-        row += 1
+        sidebar = ttk.Frame(self.root, style='Sidebar.TFrame', width=200)
+        sidebar.grid(row=0, column=0, sticky='ns')
+        sidebar.grid_propagate(False)
         
-        # 文件列表（显示所有已添加的源文件，带类型标识）
-        list_frame = ttk.Frame(main_frame)
-        list_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(sidebar, text="Translate", style='Header.TLabel').pack(pady=(30, 8), anchor='w', padx=24)
+        ttk.Label(sidebar, text="Pro", style='Header.TLabel', foreground='#6C63FF').pack(anchor='w', padx=24)
         
-        self.file_listbox = tk.Listbox(list_frame, width=100, height=5)
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.file_listbox.yview)
-        self.file_listbox.configure(yscrollcommand=scrollbar.set)
-        self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        row += 1
+        ttk.Separator(sidebar, orient='horizontal').pack(fill='x', pady=20, padx=16)
         
-        # 语言选择区域
-        ttk.Label(main_frame, text="目标语言选择:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=5)
-        row += 1
+        nav_items = [
+            ("📁", "文件管理", "files"),
+            ("🌐", "语言选择", "langs"),
+            ("📊", "处理进度", "progress"),
+            ("📝", "处理日志", "logs"),
+            ("⚙️", "设置选项", "settings")
+        ]
         
-        lang_control_frame = ttk.Frame(main_frame)
-        lang_control_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E))
+        self.nav_buttons = {}
+        for icon, text, name in nav_items:
+            btn_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
+            btn_frame.pack(fill='x', padx=12, pady=2)
+            
+            lbl = ttk.Label(btn_frame, text=f"{icon}  {text}", style='Nav.TLabel',
+                           cursor='hand2')
+            lbl.pack(fill='x', pady=8, padx=12)
+            lbl.bind('<Enter>', lambda e, l=lbl: l.configure(style='NavActive.TLabel'))
+            lbl.bind('<Leave>', lambda e, l=lbl: l.configure(style='Nav.TLabel'))
+            self.nav_buttons[name] = btn_frame
+        
+        ttk.Frame(sidebar, style='Sidebar.TFrame').pack(side='bottom', fill='x', pady=20)
+        
+        main_content = ttk.Frame(self.root, style='TFrame')
+        main_content.grid(row=0, column=1, sticky='nsew', padx=16, pady=16)
+        main_content.grid_columnconfigure(0, weight=1)
+        main_content.grid_rowconfigure(3, weight=1)
+        
+        header_frame = ttk.Frame(main_content, style='TFrame')
+        header_frame.grid(row=0, column=0, sticky='ew', pady=(0, 16))
+        header_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(header_frame, text="翻译工作台", style='Title.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(header_frame, text="支持 XML/RES 文件 · 100+ 语言 · 智能缩写", style='Subtitle.TLabel').grid(row=1, column=0, sticky='w', pady=(2, 0))
+        
+        action_frame = ttk.Frame(header_frame, style='TFrame')
+        action_frame.grid(row=0, column=2, rowspan=2, sticky='e')
+        
+        self.start_btn = ttk.Button(action_frame, text="▶ 开始翻译", command=self.start_translation, style='Accent.TButton')
+        self.start_btn.pack(side='left', padx=4)
+        
+        self.confirm_btn = ttk.Button(action_frame, text="✓ 确认生成", command=self.confirm_and_generate, state='disabled')
+        self.confirm_btn.pack(side='left', padx=4)
+        
+        content_area = ttk.Frame(main_content, style='TFrame')
+        content_area.grid(row=1, column=0, sticky='nsew')
+        content_area.grid_columnconfigure(0, weight=1)
+        content_area.grid_columnconfigure(1, weight=1)
+        content_area.grid_rowconfigure(1, weight=1)
+        
+        files_card = ttk.LabelFrame(content_area, text=" 📂 输入源文件 ", style='Card.TLabelframe', padding=12)
+        files_card.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 12))
+        files_card.grid_columnconfigure(1, weight=1)
+        
+        toolbar = ttk.Frame(files_card, style='Card.TFrame')
+        toolbar.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 8))
+        
+        ttk.Button(toolbar, text="+ 添加文件夹", command=self.add_folder).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="+ 添加文件", command=self.add_files).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="DiskC 工作流", command=self.setup_diskc_sources).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="移除选中", command=self.remove_files).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="清空列表", command=self.clear_files).pack(side='left', padx=2)
+        
+        list_container = ttk.Frame(files_card, style='Card.TFrame')
+        list_container.grid(row=1, column=0, columnspan=2, sticky='nsew')
+        files_card.grid_rowconfigure(1, weight=1)
+        
+        self.file_listbox = tk.Listbox(list_container, height=4, bg='#FAFBFE', fg='#2D2B4E',
+                                       font=('Segoe UI', 9), selectbackground='#6C63FF', selectforeground='white',
+                                       borderwidth=0, highlightthickness=1, highlightbackground='#E8E8F0')
+        self.file_listbox.pack(side='left', fill='both', expand=True)
+        
+        file_scrollbar = ttk.Scrollbar(list_container, orient='vertical', command=self.file_listbox.yview)
+        file_scrollbar.pack(side='right', fill='y')
+        self.file_listbox.configure(yscrollcommand=file_scrollbar.set)
+        
+        lang_card = ttk.LabelFrame(content_area, text=" 🌍 目标语言 ", style='Card.TLabelframe', padding=12)
+        lang_card.grid(row=1, column=0, sticky='nsew', padx=(0, 6))
+        
+        lang_toolbar = ttk.Frame(lang_card, style='Card.TFrame')
+        lang_toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 8))
         
         self.lang_show_var = tk.BooleanVar(value=self.show_all_langs)
-        ttk.Checkbutton(lang_control_frame, text="显示所有语言", variable=self.lang_show_var, 
-                        command=self.toggle_lang_display).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(lang_toolbar, text="显示全部语言", variable=self.lang_show_var,
+                       command=self.toggle_lang_display).pack(side='left', padx=4)
+        ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=4)
         
-        ttk.Button(lang_control_frame, text="设置默认语言", command=self.set_default_langs).pack(side=tk.LEFT, padx=5)
-        
-        # API选择区域
-        api_frame = ttk.Frame(lang_control_frame)
-        api_frame.pack(side=tk.LEFT, padx=20)
-        
-        ttk.Label(api_frame, text="翻译API:").pack(side=tk.LEFT, padx=5)
-        
+        api_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
+        api_frame.pack(side='left', padx=12)
+        ttk.Label(api_frame, text="API:", font=('Segoe UI', 9)).pack(side='left')
         self.api_type_var = tk.StringVar(value=self.api_type)
-        api_combo = ttk.Combobox(api_frame, textvariable=self.api_type_var, values=['google', 'baidu'], 
-                                  state='readonly', width=8)
-        api_combo.pack(side=tk.LEFT, padx=5)
+        api_combo = ttk.Combobox(api_frame, textvariable=self.api_type_var, values=['google', 'baidu'],
+                                 state='readonly', width=7, font=('Segoe UI', 9))
+        api_combo.pack(side='left', padx=4)
         api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
+        ttk.Button(api_frame, text="配置", command=self.configure_api).pack(side='left')
         
-        ttk.Button(api_frame, text="API配置", command=self.configure_api).pack(side=tk.LEFT, padx=5)
+        btn_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
+        btn_frame.pack(side='right')
+        ttk.Button(btn_frame, text="全选", command=self.select_all_langs).pack(side='left', padx=2)
+        ttk.Button(btn_frame, text="清空", command=self.deselect_all_langs).pack(side='left', padx=2)
         
-        select_all_btn = ttk.Button(lang_control_frame, text="全选", command=self.select_all_langs)
-        select_all_btn.pack(side=tk.LEFT, padx=5)
+        lang_canvas_frame = ttk.Frame(lang_card, style='Card.TFrame')
+        lang_canvas_frame.grid(row=1, column=0, sticky='nsew')
+        lang_card.grid_rowconfigure(1, weight=1)
         
-        deselect_all_btn = ttk.Button(lang_control_frame, text="取消全选", command=self.deselect_all_langs)
-        deselect_all_btn.pack(side=tk.LEFT, padx=5)
-        row += 1
+        canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=340, height=180)
+        scrollbar_y = ttk.Scrollbar(lang_canvas_frame, orient='vertical', command=canvas.yview)
+        scrollable_lang = ttk.Frame(canvas, style='Card.TFrame')
         
-        # 语言复选框框架
-        self.lang_frame = ttk.Frame(main_frame)
-        self.lang_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E))
-        row += 1
+        scrollable_lang.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.create_window((0, 0), window=scrollable_lang, anchor='nw')
+        canvas.configure(yscrollcommand=scrollbar_y.set)
         
-        # 进度条
-        ttk.Label(main_frame, text="处理进度:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=5)
-        row += 1
+        def on_mousewheel(e):
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), 'units')
+        canvas.bind_all('<MouseWheel>', on_mousewheel, add='+')
+        
+        canvas.pack(side='left', fill='both', expand=True)
+        scrollbar_y.pack(side='right', fill='y')
+        
+        self.lang_frame = scrollable_lang
+        
+        right_panel = ttk.Frame(content_area, style='TFrame')
+        right_panel.grid(row=1, column=1, sticky='nsew', padx=(6, 0))
+        right_panel.grid_rowconfigure(1, weight=1)
+        
+        stats_card = ttk.LabelFrame(right_panel, text=" 📊 统计信息 ", style='Card.TLabelframe', padding=16)
+        stats_card.grid(row=0, column=0, sticky='ew', pady=(0, 12))
+        
+        self.stat_file_count = ttk.Label(stats_card, text="--", style='StatValue.TLabel')
+        self.stat_file_count.pack(anchor='center')
+        ttk.Label(stats_card, text="已添加文件", style='StatLabel.TLabel').pack(anchor='center', pady=(0, 12))
+        
+        stat_mid = ttk.Frame(stats_card, style='Stats.TFrame')
+        stat_mid.pack(fill='x', pady=8)
+        
+        self.stat_lang_count = ttk.Label(stat_mid, text="--", style='StatValue.TLabel', font=('Segoe UI', 16, 'bold'))
+        self.stat_lang_count.pack(side='left')
+        ttk.Label(stat_mid, text="\n已选语言", style='StatLabel.TLabel').pack(side='left', padx=(8, 0))
+        
+        progress_card = ttk.LabelFrame(right_panel, text=" ⏳ 处理进度 ", style='Card.TLabelframe', padding=16)
+        progress_card.grid(row=1, column=0, sticky='nsew')
         
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100, length=800)
-        self.progress_bar.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        self.progress_bar = ttk.Progressbar(progress_card, variable=self.progress_var, maximum=100,
+                                           mode='determinate', length=200)
+        self.progress_bar.pack(fill='x', pady=(0, 8))
         
-        self.progress_label = ttk.Label(main_frame, text="0%")
-        self.progress_label.grid(row=row, column=3, sticky=tk.W, pady=5)
-        row += 1
+        pct_frame = ttk.Frame(progress_card, style='Stats.TFrame')
+        pct_frame.pack()
+        self.progress_label = ttk.Label(pct_frame, text="0%", font=('Segoe UI', 14, 'bold'),
+                                        foreground='#6C63FF')
+        self.progress_label.pack(side='left')
+        ttk.Label(pct_frame, text="  就绪", style='Subtitle.TLabel').pack(side='left')
         
-        # 日志区域
-        ttk.Label(main_frame, text="处理日志:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=5)
-        row += 1
+        log_card = ttk.LabelFrame(main_content, text=" 📋 处理日志 ", style='Card.TLabelframe', padding=12)
+        log_card.grid(row=2, column=0, sticky='nsew', pady=(12, 0))
+        main_content.grid_rowconfigure(2, weight=1)
         
-        self.log_text = scrolledtext.ScrolledText(main_frame, width=110, height=18, wrap=tk.WORD)
-        self.log_text.grid(row=row, column=0, columnspan=4, sticky=(tk.W, tk.E, tk.N, tk.S))
-        self.log_text.insert(tk.END, "欢迎使用自动化翻译处理工具！\n")
-        self.log_text.insert(tk.END, "请选择输入源（文件夹或文件）和目标语言，然后点击开始翻译按钮。\n")
-        row += 1
+        self.log_text = scrolledtext.ScrolledText(log_card, height=10, wrap=tk.WORD,
+                                                   font=('Consolas', 9), bg='#FAFBFE', fg='#4A4A68',
+                                                   borderwidth=0, highlightthickness=0)
+        self.log_text.pack(fill='both', expand=True)
+        self.log_text.insert(tk.END, "欢迎使用 Translate Pro！\n")
+        self.log_text.insert(tk.END, "请添加输入源文件并选择目标语言，然后点击「开始翻译」。\n")
         
-        # 操作按钮
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=row, column=0, columnspan=4, pady=10)
+        bottom_bar = ttk.Frame(main_content, style='TFrame')
+        bottom_bar.grid(row=3, column=0, sticky='ew', pady=(12, 0))
         
-        self.start_btn = ttk.Button(button_frame, text="开始翻译", command=self.start_translation)
-        self.start_btn.pack(side=tk.LEFT, padx=10)
-        
-        # 打包选项
         self.pack_var = tk.BooleanVar()
-        self.pack_check = ttk.Checkbutton(button_frame, text="生成后打包为.res", variable=self.pack_var)
-        self.pack_check.pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(bottom_bar, text="打包为 .res", variable=self.pack_var).pack(side='left', padx=8)
         
-        self.confirm_btn = ttk.Button(button_frame, text="确认翻译并生成XML", 
-                                     command=self.confirm_and_generate, state='disabled')
-        self.confirm_btn.pack(side=tk.LEFT, padx=10)
+        ttk.Separator(bottom_bar, orient='vertical').pack(side='left', fill='y', padx=12, pady=4)
         
-        ttk.Button(button_frame, text="查看翻译表", command=self.view_translation_table).pack(side=tk.LEFT, padx=10)
+        ttk.Button(bottom_bar, text="查看翻译表", command=self.view_translation_table).pack(side='left', padx=4)
+        ttk.Button(bottom_bar, text="导出 Excel", command=self.export_to_excel).pack(side='left', padx=4)
+        ttk.Button(bottom_bar, text="导入 Excel", command=self.import_from_excel).pack(side='left', padx=4)
+        ttk.Button(bottom_bar, text="导出日志", command=self.export_log).pack(side='left', padx=4)
         
-        ttk.Button(button_frame, text="导出Excel", command=self.export_to_excel).pack(side=tk.LEFT, padx=10)
+        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=220)
+        stats_panel.grid(row=0, column=2, sticky='ns', padx=(0, 16), pady=16)
+        stats_panel.grid_propagate(False)
         
-        ttk.Button(button_frame, text="导入Excel", command=self.import_from_excel).pack(side=tk.LEFT, padx=10)
+        outer_stats = ttk.Frame(stats_panel, style='Stats.TFrame', padding=20)
+        outer_stats.pack(fill='both', expand=True)
         
-        ttk.Button(button_frame, text="导出日志", command=self.export_log).pack(side=tk.LEFT, padx=10)
+        ttk.Label(outer_stats, text="Statistic", font=('Segoe UI', 14, 'bold'),
+                  foreground='#2D2B4E', background='white').pack(anchor='w', pady=(0, 20))
         
-        main_frame.columnconfigure(0, weight=1)
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        stat_items = [
+            ("downloads", "本周处理", "0", "次"),
+            ("space", "可用空间", "--", ""),
+            ("shared", "翻译条目", "0", "条")
+        ]
         
-        # 更新语言显示
+        self.stats_refs = {}
+        for icon_id, label, default_val, unit in stat_items:
+            item_frame = ttk.Frame(outer_stats, style='Stats.TFrame')
+            item_frame.pack(fill='x', pady=10)
+            
+            left_part = ttk.Frame(item_frame, style='Stats.TFrame')
+            left_part.pack(side='left')
+            
+            val_lbl = ttk.Label(left_part, text=default_val, style='StatValue.TLabel',
+                                font=('Segoe UI', 18, 'bold'))
+            val_lbl.pack(anchor='w')
+            ttk.Label(left_part, text=label, style='StatLabel.TLabel').pack(anchor='w')
+            
+            self.stats_refs[icon_id] = val_lbl
+            
+            if unit:
+                ttk.Label(item_frame, text=f"\n{unit}", style='StatLabel.TLabel').pack(side='left', padx=(8, 0))
+        
+        ttk.Separator(outer_stats, orient='horizontal').pack(fill='x', pady=16)
+        
+        tip_frame = ttk.Frame(outer_stats, style='Stats.TFrame')
+        tip_frame.pack(fill='x')
+        ttk.Label(tip_frame, text="💡 提示", font=('Segoe UI', 10, 'bold'),
+                  foreground='#2D2B4E', background='white').pack(anchor='w')
+        ttk.Label(tip_frame, text="智能缩写将自动优化\n超长翻译文本的长度",
+                  font=('Segoe UI', 9), foreground='#8E8EA0', background='white',
+                  justify='left').pack(anchor='w', pady=(4, 0))
+        
         self.update_lang_display()
     
     def add_folder(self):
@@ -665,6 +797,17 @@ class TranslationApp:
                 row_lang += 1
         
         self.lang_frame.update_idletasks()
+        self.update_stats()
+    
+    def update_stats(self):
+        if hasattr(self, 'stat_file_count'):
+            self.stat_file_count.configure(text=str(len(self.source_files)))
+        if hasattr(self, 'stat_lang_count'):
+            selected = len([l for l, v in self.lang_vars.items() if v.get()]) if hasattr(self, 'lang_vars') else 0
+            self.stat_lang_count.configure(text=str(selected))
+        if hasattr(self, 'stats_refs') and 'shared' in self.stats_refs:
+            total = len(self.translation_table)
+            self.stats_refs['shared'].configure(text=str(total))
     
     def select_all_langs(self):
         """
@@ -1495,11 +1638,14 @@ class TranslationApp:
         self.log(f"智能缩写完成，共缩写 {abbreviated_count} 条翻译")
     
     def _update_progress(self, progress, count):
-        """
-        在主线程中更新进度条
-        """
         self.progress_var.set(progress)
         self.progress_label.config(text=f"{progress}%")
+        if hasattr(self, 'progress_label') and progress > 0:
+            master = self.progress_label.master
+            for child in master.winfo_children():
+                if isinstance(child, ttk.Label) and child.cget('text').startswith(' '):
+                    child.config(text="  处理中..." if progress < 100 else "  完成!")
+                    break
     
     def confirm_and_generate(self):
         """
