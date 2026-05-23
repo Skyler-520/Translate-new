@@ -1493,34 +1493,27 @@ class TranslationApp:
                     content = f.read()
 
                 messages = []
-                parser = ET.XMLParser(encoding='utf-8')
+                # 统一使用正则提取，保留原始Message元素的完整文本（含所有属性如id/ID/Content等）
                 try:
-                    root = ET.fromstring(content, parser=parser)
-                    for elem in root.findall('.//Message'):
-                        msg_id = elem.get('ID', '')
-                        original_content = elem.get('Content', '')
-                        messages.append((msg_id, original_content))
-                except Exception as parse_e:
-                    self.log(f"解析 {os.path.basename(xml_file)} 时 XML 解析失败: {parse_e}，尝试正则抽取")
+                    for m in re.finditer(r'<Message\b[^>]*/>', content, flags=re.IGNORECASE | re.DOTALL):
+                        raw_elem = m.group(0)
+                        id_m = (re.search(r'\bID\s*=\s*"(.*?)"', raw_elem) or
+                                re.search(r"\bID\s*=\s*'(.*?)'", raw_elem) or
+                                re.search(r'\bid\s*=\s*"(.*?)"', raw_elem) or
+                                re.search(r"\bid\s*=\s*'(.*?)'", raw_elem))
+                        msg_id = id_m.group(1) if id_m else ''
+                        cont_m = (re.search(r'Content\s*=\s*"(.*?)"', raw_elem) or
+                                  re.search(r"Content\s*=\s*'(.*?)'", raw_elem))
+                        original_content = cont_m.group(1) if cont_m else ''
+                        messages.append((msg_id, original_content, raw_elem))
+                    self.log(f"从 {os.path.basename(xml_file)} 提取 {len(messages)} 条 Message")
+                    if len(messages) == 0:
+                        content_preview = content.strip()[:120]
+                        self.log(f"警告: {os.path.basename(xml_file)} 未匹配到任何Message标签，文件预览: {content_preview}")
+                except Exception as ex_e:
+                    self.log(f"Message提取失败: {ex_e}")
                     if self.logger:
-                        self.logger.exception(parse_e)
-                    # 正则抽取 ID 和 Content
-                    try:
-                        for m in re.finditer(r'<Message\b([^>]*)/?>', content, flags=re.IGNORECASE | re.DOTALL):
-                            attrs = m.group(1)
-                            id_m = re.search(r'ID\s*=\s*"(.*?)"', attrs) or re.search(r"ID\s*=\s*'(.*?)'", attrs)
-                            cont_m = re.search(r'Content\s*=\s*"(.*?)"', attrs) or re.search(r"Content\s*=\s*'(.*?)'", attrs)
-                            msg_id = id_m.group(1) if id_m else ''
-                            original_content = cont_m.group(1) if cont_m else ''
-                            messages.append((msg_id, original_content))
-                        self.log(f"正则方式从 {os.path.basename(xml_file)} 提取到 {len(messages)} 条 Message")
-                        if len(messages) == 0:
-                            content_preview = content.strip()[:120]
-                            self.log(f"警告: {os.path.basename(xml_file)} 未匹配到任何Message标签，文件预览: {content_preview}")
-                    except Exception as re_e:
-                        self.log(f"正则抽取失败: {re_e}")
-                        if self.logger:
-                            self.logger.exception(re_e)
+                        self.logger.exception(ex_e)
 
                 self.log(f"从 {os.path.basename(xml_file)} 提取 {len(messages)} 条Message（含非中文），准备生成翻译文件")
 
@@ -1560,7 +1553,7 @@ class TranslationApp:
                         lang_identity = lang_identity.replace('\n', '&#xA;').replace('"', '&quot;')
                         lines.append(f'  <Message ID="{lang}" Content="{lang_identity}" />')
 
-                    for msg_id, original_content in messages:
+                    for msg_id, original_content, raw_elem in messages:
                         if original_content in self.translation_table and lang in self.translation_table[original_content]:
                             translated = self.translation_table[original_content][lang]
                             content_val = translated if translated and translated != original_content else original_content
@@ -1569,7 +1562,13 @@ class TranslationApp:
 
                         content_val = content_val.replace('\n', '&#xA;')
                         content_val = content_val.replace('"', '&quot;')
-                        lines.append(f'  <Message ID="{msg_id}" Content="{content_val}" />')
+                        # 在原始元素文本中仅替换Content值，保留id/ID等其他所有属性
+                        new_elem = re.sub(
+                            r'Content\s*=\s*"[^"]*"',
+                            f'Content="{content_val}"',
+                            raw_elem
+                        )
+                        lines.append(f'  {new_elem.strip()}')
 
                     lines.append('</ResMap>')
 
