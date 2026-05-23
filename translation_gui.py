@@ -503,8 +503,9 @@ class TranslationApp:
         
         self.lang_frame = scrollable_lang
         
-        right_panel = ttk.Frame(content_area, style='TFrame')
-        right_panel.grid(row=1, column=1, sticky='nsew', padx=(6, 0))
+        right_panel = ttk.Frame(content_area, style='TFrame', width=220)
+        right_panel.grid(row=1, column=1, sticky='nsew', padx=(12, 0))
+        right_panel.grid_propagate(False)
         right_panel.grid_rowconfigure(1, weight=1)
         
         stats_card = ttk.LabelFrame(right_panel, text=" 📊 统计信息 ", style='Card.TLabelframe', padding=16)
@@ -547,7 +548,7 @@ class TranslationApp:
         self.log_text.insert(tk.END, "欢迎使用 Translate Pro！\n")
         self.log_text.insert(tk.END, "请添加输入源文件并选择目标语言，然后点击「开始翻译」。\n")
         
-        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=180)
+        stats_panel = ttk.Frame(self.root, style='Stats.TFrame', width=220)
         stats_panel.grid(row=0, column=2, sticky='ns', padx=(0, 16), pady=16)
         stats_panel.grid_propagate(False)
         
