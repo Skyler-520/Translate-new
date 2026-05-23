@@ -1351,6 +1351,17 @@ class TranslationApp:
         max_lengths = {
             'default': 40,
             'JPN': 22, 'KOR': 22,
+            'GER': 35, 'DES': 35, 'DEA': 35, 'DEL': 35, 'DEC': 35,
+            'FRA': 32, 'FRB': 32, 'FRC': 32, 'FRS': 32, 'FRL': 32, 'FRM': 32,
+            'ITA': 30, 'ITS': 30,
+            'ESP': 28, 'ESM': 28, 'ESG': 28, 'ESC': 28, 'ESA': 28, 'ESD': 28,
+            'ESV': 28, 'ESO': 28, 'ESR': 28, 'ESS': 28, 'ESF': 28, 'ESL': 28,
+            'ESY': 28, 'ESB': 28, 'ESE': 28, 'ESH': 28, 'ESN': 28, 'ESU': 28, 'ESP2': 28,
+            'PTG': 30, 'PTB': 30,
+            'RUS': 25,
+            'ARA': 40, 'ARL': 40, 'ARG': 40, 'ARM': 40, 'ART': 40,
+            'ARO': 40, 'ARY': 40, 'ARS': 40, 'ARJ': 40, 'ARB': 40,
+            'ARK': 40, 'ARU': 40, 'ARH': 40, 'ARQ': 40,
         }
 
         CN_FUNCTION_WORDS = set(
@@ -1361,7 +1372,7 @@ class TranslationApp:
             'a an the and or but if is are was were be been being have has had do does did will would shall should can could may might must need want like love hate think know believe see hear feel make get give take come go use find tell ask say speak talk walk run work play start stop begin end open close save load create delete add remove set get put show hide enable disable select choose click press enter exit cancel ok yes no true false on off in at to from by for of with about above after before between under over through into onto upon within without during since until while as than up down left right back front near far all any each every some many few more most less much such other another same different new old first last next previous current default custom user system file folder directory window page menu button label text input output setting option mode state status type kind form format size color style value name number id index key code data info message error warning success fail pass result total count sum average min max low high auto manual public private local global remote main sub help tip note log view edit copy cut paste paste undo redo clear reset refresh reload search sort filter group merge split join connect disconnect attach detach lock unlock freeze thaw zoom in out expand collapse'
         )
 
-        JP_PARTICLES = set('の は が を に へ と で から まで も など しか も か なら けれど けど し て に な だ です ます た ない ぬ ね よ わ ぁ い う え お').split()
+        JP_PARTICLES = set('の は が を に へ と で から まで も など しか も か なら けれど けど し て に な だ です ます た ない ぬ ね よ わ ぁ い う え お'.split())
 
         KR_PARTICLES = set('의 에서 은 는 를 을 가 과 와 도 부터 까지 조차 만큼 처럼'.split())
 
@@ -1455,7 +1466,25 @@ class TranslationApp:
                     new_val = abbreviate_kr(original, max_len)
                 elif lang in ('ENG', 'USA', 'ENA', 'ENC', 'ENZ', 'ENI', 'ENS'):
                     new_val = abbreviate_en(original, max_len)
+                elif lang in ('GER', 'DES', 'DEA', 'DEL', 'DEC'):
+                    new_val = abbreviate_en(original, max_len)
+                elif lang in ('FRA', 'FRB', 'FRC', 'FRS', 'FRL', 'FRM'):
+                    new_val = abbreviate_en(original, max_len)
+                elif lang in ('ITA', 'ITS'):
+                    new_val = abbreviate_en(original, max_len)
+                elif lang in ('ESP', 'ESM', 'ESG', 'ESC', 'ESA', 'ESD',
+                              'ESV', 'ESO', 'ESR', 'ESS', 'ESF', 'ESL',
+                              'ESY', 'ESB', 'ESE', 'ESH', 'ESN', 'ESU', 'ESP2'):
+                    new_val = abbreviate_en(original, max_len)
+                elif lang in ('PTG', 'PTB'):
+                    new_val = abbreviate_en(original, max_len)
+                elif lang == 'RUS':
+                    new_val = abbreviate_default(original, max_len)
+                elif lang in ('ARA', 'ARL', 'ARG', 'ARM', 'ART', 'ARO',
+                              'ARY', 'ARS', 'ARJ', 'ARB', 'ARK', 'ARU', 'ARH', 'ARQ'):
+                    new_val = abbreviate_default(original, max_len)
                 else:
+                    new_val = abbreviate_default(original, max_len)
                     new_val = abbreviate_default(original, max_len)
                 self.translation_table[text][lang] = new_val
                 abbreviated_count += 1
