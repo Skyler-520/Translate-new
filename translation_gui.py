@@ -1350,7 +1350,6 @@ class TranslationApp:
 
         max_lengths = {
             'default': 40,
-            'CHT': 28, 'CHS': 28, 'ZHH': 28, 'ZHI': 28, 'ZHM': 28,
             'JPN': 22, 'KOR': 22,
         }
 
@@ -1441,7 +1440,7 @@ class TranslationApp:
                 if len(original) <= max_len:
                     continue
                 if lang in ('CHT', 'CHS', 'ZHH', 'ZHI', 'ZHM'):
-                    new_val = abbreviate_cn(original, max_len)
+                    continue
                 elif lang == 'JPN':
                     new_val = abbreviate_jp(original, max_len)
                 elif lang == 'KOR':
