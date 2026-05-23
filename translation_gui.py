@@ -187,6 +187,7 @@ class TranslationApp:
         self.selected_langs = []        # 选中的语言列表
         self.translation_table = {}     # 翻译表字典
         self.output_dir = os.path.dirname(os.path.abspath(__file__))  # 输出目录
+        self.table_dir = os.path.dirname(os.path.abspath(__file__))   # 翻译表保存目录
         self.default_langs = DEFAULT_LANGS.copy()  # 默认语言列表
         self.show_all_langs = False     # 是否显示所有语言
         self.translation_complete = False  # 翻译是否完成
@@ -804,7 +805,7 @@ class TranslationApp:
         加载翻译表
         从输出目录读取translation_table.json
         """
-        table_path = os.path.join(self.output_dir, 'translation_table.json')
+        table_path = os.path.join(self.table_dir, 'translation_table.json')
         if os.path.exists(table_path):
             try:
                 with open(table_path, 'r', encoding='utf-8') as f:
@@ -818,7 +819,7 @@ class TranslationApp:
         保存翻译表
         将翻译表写入translation_table.json
         """
-        table_path = os.path.join(self.output_dir, 'translation_table.json')
+        table_path = os.path.join(self.table_dir, 'translation_table.json')
         try:
             with open(table_path, 'w', encoding='utf-8') as f:
                 json.dump(self.translation_table, f, ensure_ascii=False, indent=2)
@@ -1583,7 +1584,7 @@ class TranslationApp:
         """
         打开翻译表文件
         """
-        table_path = os.path.join(self.output_dir, 'translation_table.json')
+        table_path = os.path.join(self.table_dir, 'translation_table.json')
         if os.path.exists(table_path):
             os.startfile(table_path)
         else:
