@@ -383,19 +383,6 @@ class TranslationApp:
         action_frame = ttk.Frame(header_frame, style='TFrame')
         action_frame.grid(row=0, column=2, rowspan=2, sticky='e')
         
-        api_select = ttk.Frame(action_frame, style='TFrame')
-        api_select.pack(side='left', padx=(0, 8))
-        
-        ttk.Label(api_select, text="API:", font=('Segoe UI', 9)).pack(side='left')
-        self.api_type_var = tk.StringVar(value=self.api_type)
-        api_combo = ttk.Combobox(api_select, textvariable=self.api_type_var, values=['google', 'baidu'],
-                                 state='readonly', width=7, font=('Segoe UI', 9))
-        api_combo.pack(side='left', padx=4)
-        api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
-        ttk.Button(api_select, text="配置", command=self.configure_api).pack(side='left')
-        
-        ttk.Separator(action_frame, orient='vertical').pack(side='left', fill='y', padx=6)
-        
         self.start_btn = ttk.Button(action_frame, text="▶ 开始翻译", command=self.start_translation, style='Accent.TButton')
         self.start_btn.pack(side='left', padx=4)
         
@@ -474,6 +461,19 @@ class TranslationApp:
         search_entry.bind('<FocusIn>', _on_focus_in)
         search_entry.bind('<FocusOut>', _on_focus_out)
         self.main_lang_search_var.trace('w', lambda *args: self._filter_main_langs())
+        
+        ttk.Separator(lang_toolbar, orient='vertical').pack(side='left', fill='y', padx=6, pady=2)
+        
+        api_frame = ttk.Frame(lang_toolbar, style='Card.TFrame')
+        api_frame.pack(side='left', padx=(0, 4))
+        
+        ttk.Label(api_frame, text="API:", font=('Segoe UI', 9)).pack(side='left')
+        self.api_type_var = tk.StringVar(value=self.api_type)
+        api_combo = ttk.Combobox(api_frame, textvariable=self.api_type_var, values=['google', 'baidu'],
+                                 state='readonly', width=7, font=('Segoe UI', 9))
+        api_combo.pack(side='left', padx=3)
+        api_combo.bind('<<ComboboxSelected>>', lambda e: self.on_api_type_changed())
+        ttk.Button(api_frame, text="配置", command=self.configure_api).pack(side='left')
         
         ttk.Button(lang_toolbar, text="设置默认", command=self.set_default_langs).pack(side='left', padx=4)
         
