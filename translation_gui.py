@@ -1497,8 +1497,6 @@ class TranslationApp:
         text_strip = text.strip()
         if not text_strip:
             return text
-        if text_strip in BRAND_NAMES:
-            return text
         
         if self.api_type == 'baidu':
             return self.baidu_translate(text, target_lang)
@@ -1916,8 +1914,9 @@ class TranslationApp:
                         lines.append(f'  <Message ID="{lang}" Content="{lang_identity}" />')
 
                     for msg_id, original_content, raw_elem in messages:
-                        if original_content in self.translation_table and lang in self.translation_table[original_content]:
-                            translated = self.translation_table[original_content][lang]
+                        normalized_content = self._normalize_text(original_content)
+                        if normalized_content in self.translation_table and lang in self.translation_table[normalized_content]:
+                            translated = self.translation_table[normalized_content][lang]
                             content_val = translated if translated and translated != original_content else original_content
                         else:
                             content_val = original_content
