@@ -654,6 +654,7 @@ class TranslationApp:
         self.source_folders = []
         self.source_folder = diskc_root
         self.output_dir = diskc_root
+        self.diskc_plugin_source = ""
 
         res_path = os.path.join(diskc_root, 'OpenCNC', 'Bin', 'Language', 'CHS.res')
         prepared_res = self.prepare_file(res_path)
@@ -682,6 +683,17 @@ class TranslationApp:
             self.log(f"DiskC工作流: 从String目录加载 {xml_count} 个XML文件")
         else:
             self.log(f"DiskC工作流: 未找到目录 {string_dir}")
+
+        plugin_config_path = os.path.join(diskc_root, 'OpenCNC', 'Bin', 'Plugin', 'Config', 'CHS.xml')
+        if os.path.isfile(plugin_config_path):
+            prepared_plugin = self.prepare_file(plugin_config_path)
+            if prepared_plugin:
+                self.diskc_plugin_source = prepared_plugin
+                self.source_files.append(prepared_plugin)
+                self.file_listbox.insert(tk.END, f"[XML] Plugin/Config/CHS.xml")
+                self.log(f"DiskC工作流: 加载 {plugin_config_path}")
+        else:
+            self.log(f"DiskC工作流: 未找到 {plugin_config_path}")
 
         msg = f"DiskC工作流已就绪: {len(self.source_files)} 个文件"
         if not self.headless:
@@ -1869,6 +1881,7 @@ class TranslationApp:
 
                 is_diskc_res = self.diskc_mode and xml_file == self.diskc_res_source
                 is_diskc_xml = self.diskc_mode and xml_file in self.diskc_xml_map
+                is_diskc_plugin = self.diskc_mode and xml_file == self.diskc_plugin_source
 
                 # 为每种选中的语言生成XML文件
                 for lang in self.selected_langs:
@@ -1882,6 +1895,11 @@ class TranslationApp:
                         string_dir = os.path.join(self.diskc_root, 'OpenCnc Shared', 'OCRes', lang, 'String')
                         os.makedirs(os.path.join(string_dir, os.path.dirname(rel_path)), exist_ok=True)
                         xml_output_path = os.path.join(string_dir, rel_path)
+                        pack_after_write = False
+                    elif is_diskc_plugin:
+                        plugin_dir = os.path.join(self.diskc_root, 'OpenCNC', 'Bin', 'Plugin', 'Config')
+                        os.makedirs(plugin_dir, exist_ok=True)
+                        xml_output_path = os.path.join(plugin_dir, lang + '.xml')
                         pack_after_write = False
                     else:
                         xml_output_path = os.path.join(self.output_dir, lang, 'String', base_name + '.xml')
