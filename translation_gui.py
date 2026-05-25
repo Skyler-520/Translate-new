@@ -174,7 +174,7 @@ LANG_NATIVE_NAME = {
     'RUS': 'Русский 俄罗斯', 'PTG': 'Português 葡萄牙', 'PTB': 'Português 巴西',
     'TRK': 'Türkçe 土耳其', 'PLK': 'Polski 波兰', 'VIT': 'Tiếng Việt 越南',
     'CAT': 'Català 西班牙', 'THA': 'ไทย 泰国', 'DAN': 'Dansk 丹麦', 'NON': 'Norsk 挪威',
-    'SVE': 'Svenska 瑞典', 'FIN': 'Suomi 芬兰', 'NLN': 'Nederlands 荷兰', 'NLB': 'Nederlands 比利时',
+    'SVE': 'Svenska 瑞典', 'FIN': 'Suomi 芬兰', 'NLD': 'Nederlands 荷兰', 'NLB': 'Nederlands 比利时',
     'CSY': 'Čeština 捷克', 'SKY': 'Slovenčina 斯洛伐克', 'HUN': 'Magyar 匈牙利', 'ELL': 'Ελληνικά 希腊',
     'ARA': 'العربية 沙特阿拉伯', 'ARL': 'العربية 利比亚', 'ARG': 'العربية 阿尔及利亚', 'ARM': 'العربية 摩洛哥',
     'ART': 'الع العربية 伊拉克', 'ARO': 'العربية 阿曼', 'ARY': 'العربية 埃及', 'ARS': 'العربية 叙利亚',
@@ -1186,13 +1186,30 @@ class TranslationApp:
                 self.log(f"解析 {source_file} 失败: {e}")
                 if self.logger:
                     self.logger.exception(f"解析失败: {source_file}")
-        # 将新文本添加到翻译表
+        # 将新文本添加到翻译表（标准化处理）
         for text in all_texts:
-            if text not in self.translation_table:
-                self.translation_table[text] = {lang: '' for lang in LANG_MAP.keys()}
+            normalized = self._normalize_text(text)
+            if normalized not in self.translation_table:
+                self.translation_table[normalized] = {lang: '' for lang in LANG_MAP.keys()}
         
         self.save_translation_table()
         return all_texts
+    
+
+    
+    def _normalize_text(self, text):
+        """文本标准化：统一文本格式以确保准确匹配"""
+        if not text:
+            return text
+        
+        result = text.strip()
+        result = result.replace('\r\n', '\n').replace('\r', '\n')
+        result = result.replace('，', ',').replace('。', '.').replace('：', ':')
+        result = result.replace('；', ';').replace('！', '!').replace('？', '?')
+        result = result.replace('（', '(').replace('）', ')')
+        result = re.sub(r'\s+', ' ', result)
+        
+        return result
     
     def decompress_res(self, res_file_path):
         """
