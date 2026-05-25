@@ -244,6 +244,14 @@ class TranslationApp:
         self.baidu_app_id = ''   # 百度翻译API App ID
         self.baidu_secret_key = ''  # 百度翻译API Secret Key
         
+        # 翻译缓存 - 避免相同文本重复翻译
+        self.translation_cache = {}
+        
+        # HTTP连接复用Session - 显著提升请求速度
+        self.http_session = requests.Session()
+        self.http_session.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        self.http_session.adapters.DEFAULT_RETRIES = 3
+        
         # 加载配置、创建界面、加载翻译表
         self.load_config()
         self.create_widgets()
@@ -1461,10 +1469,8 @@ class TranslationApp:
                 
                 self.log(f"百度翻译请求: from=auto, to={lang_code}, text_len={len(text)}")
                 
-                response = requests.post(url, data=data, timeout=15)
+                response = self.http_session.post(url, data=data, timeout=10)
                 result = response.json()
-                
-                self.log(f"百度翻译响应: {result}")
                 
                 if 'trans_result' in result and result['trans_result']:
                     return result['trans_result'][0]['dst']
@@ -1473,14 +1479,12 @@ class TranslationApp:
                         error_code = result['error_code']
                         error_msg = result.get('error_msg', '未知错误')
                         self.log(f"百度翻译API错误[{error_code}]: {error_msg}")
-                        # 如果是语言方向不支持，提示用户检查账户权限
                         if error_code == '58001':
                             self.log(f"提示: 请检查百度翻译API账户是否开通了 {lang_code} 语言的翻译服务")
                     return text
             except Exception as e:
-                self.log(f"百度翻译异常: {str(e)}")
                 if attempt < max_retries - 1:
-                    time.sleep(2)
+                    time.sleep(2 ** attempt)
                     continue
                 self.log(f"百度翻译失败: {text} -> {target_lang}")
                 return text
@@ -1489,7 +1493,7 @@ class TranslationApp:
     
     def translate_text(self, text, target_lang):
         """
-        使用选择的翻译API翻译文本
+        使用选择的翻译API翻译文本（支持缓存和连接复用）
         :param text: 待翻译文本
         :param target_lang: 目标语言代码
         :return: 翻译后的文本
@@ -1498,25 +1502,50 @@ class TranslationApp:
         if not text_strip:
             return text
         
-        if self.api_type == 'baidu':
-            return self.baidu_translate(text, target_lang)
+        cache_key = f"{text_strip}_{target_lang}"
+        if cache_key in self.translation_cache:
+            return self.translation_cache[cache_key]
         
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                url = f'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl={target_lang}&dt=t&q={quote(text)}'
-                headers = {'User-Agent': 'Mozilla/5.0'}
-                response = requests.get(url, headers=headers, timeout=15)
-                response.raise_for_status()
-                result = response.json()
-                translated = ''.join([item[0] for item in result[0] if item[0]])
-                return translated
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    time.sleep(3)
-                    continue
-                self.log(f"翻译失败: {text} -> {target_lang}")
-                return text
+        if self.api_type == 'baidu':
+            result = self.baidu_translate(text, target_lang)
+        else:
+            max_retries = 3
+            result = text
+            for attempt in range(max_retries):
+                try:
+                    url = f'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl={target_lang}&dt=t&q={quote(text)}'
+                    response = self.http_session.get(url, timeout=10)
+                    response.raise_for_status()
+                    result = response.json()
+                    result = ''.join([item[0] for item in result[0] if item[0]])
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                        continue
+                    self.log(f"翻译失败: {text} -> {target_lang}")
+        
+        self.translation_cache[cache_key] = result
+        return result
+    
+    def translate_text_multi_lang(self, text, target_langs):
+        """
+        批量翻译：相同文本翻译成多种目标语言
+        :param text: 待翻译文本
+        :param target_langs: 目标语言代码列表
+        :return: {lang_code: translation_result} 的字典
+        """
+        results = {}
+        text_strip = text.strip()
+        if not text_strip:
+            for lang in target_langs:
+                results[lang] = text
+            return results
+        
+        for lang in target_langs:
+            results[lang] = self.translate_text(text, lang)
+        
+        return results
     
     def start_translation(self):
         """
@@ -1588,32 +1617,41 @@ class TranslationApp:
         def translate_thread():
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            texts_to_translate = []
+            # 按文本分组：相同文本的多语言翻译请求合并
+            # 结构: {text: [lang1, lang2, ...]}
+            text_to_langs = {}
             for text in self.translation_table.keys():
                 for lang in self.selected_langs:
                     if lang not in self.translation_table[text]:
                         self.translation_table[text][lang] = ''
                     if not self.translation_table[text][lang] or self.translation_table[text][lang] == text:
-                        texts_to_translate.append((text, lang))
+                        if text not in text_to_langs:
+                            text_to_langs[text] = []
+                        text_to_langs[text].append(lang)
+
+            self.log(f"优化后: {len(text_to_langs)} 个唯一文本，{total_needed} 个翻译任务")
 
             completed = 0
             lock = threading.Lock()
 
-            def translate_one(item):
-                text, lang = item
-                result = self.translate_text(text, LANG_MAP[lang]['code'])
-                return text, lang, result
+            def translate_one_text(item):
+                text, langs = item
+                lang_codes = [LANG_MAP[lang]['code'] for lang in langs]
+                results = self.translate_text_multi_lang(text, lang_codes)
+                return text, langs, results
 
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = {executor.submit(translate_one, item): item for item in texts_to_translate}
+            with ThreadPoolExecutor(max_workers=15) as executor:
+                futures = {executor.submit(translate_one_text, (text, langs)): text for text, langs in text_to_langs.items()}
                 for future in as_completed(futures):
-                    text, lang, result = future.result()
+                    text, langs, results = future.result()
                     current_completed = 0
                     current_progress = 0.0
                     should_save = False
                     with lock:
-                        self.translation_table[text][lang] = result
-                        completed += 1
+                        for i, lang in enumerate(langs):
+                            lang_code = LANG_MAP[lang]['code']
+                            self.translation_table[text][lang] = results.get(lang_code, text)
+                            completed += 1
                         current_completed = completed
                         current_progress = round(completed / total_needed * 100, 1)
                         if completed % 50 == 0:
