@@ -13,17 +13,17 @@ def check_pyinstaller():
     """检查是否已安装 PyInstaller"""
     try:
         import PyInstaller
-        print(f"✓ PyInstaller 已安装 (版本: {PyInstaller.__version__})")
+        print(f"[OK] PyInstaller 已安装 (版本: {PyInstaller.__version__})")
         return True
     except ImportError:
-        print("✗ PyInstaller 未安装")
+        print("[ERROR] PyInstaller 未安装")
         print("正在安装 PyInstaller...")
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
-            print("✓ PyInstaller 安装成功")
+            print("[OK] PyInstaller 安装成功")
             return True
         except Exception as e:
-            print(f"✗ 安装失败: {e}")
+            print(f"[ERROR] 安装失败: {e}")
             return False
 
 def build_exe():
@@ -69,7 +69,7 @@ def build_exe():
         )
         print(result.stdout)
         print("\n" + "-" * 60)
-        print("✓ 打包完成!")
+        print("[OK] 打包完成!")
         
         exe_path = os.path.join(output_dir, f"{app_name}_v{version}.exe")
         if os.path.exists(exe_path):
@@ -81,11 +81,11 @@ def build_exe():
             create_release_note(version, output_dir, exe_path)
             return True
         else:
-            print("✗ 打包完成但找不到可执行文件")
+            print("[ERROR] 打包完成但找不到可执行文件")
             return False
             
     except subprocess.CalledProcessError as e:
-        print("✗ 打包失败!")
+        print("[ERROR] 打包失败!")
         print(e.stdout)
         return False
 
