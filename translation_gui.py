@@ -8,11 +8,6 @@
     4. 自动生成各语言版本的XML文件
 """
 
-__version__ = '1.1.0'
-__author__ = 'Translation Team'
-__copyright__ = 'Copyright © 2025'
-__description__ = '自动化翻译处理工具'
-
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext, simpledialog
 import xml.etree.ElementTree as ET
@@ -221,7 +216,7 @@ class TranslationApp:
         :param root: Tkinter主窗口对象
         """
         self.root = root
-        self.root.title(f"自动化翻译处理工具 v{__version__}")
+        self.root.title("自动化翻译处理工具")
         self.root.geometry("1000x800")
         
         # 初始化实例变量
