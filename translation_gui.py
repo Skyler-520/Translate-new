@@ -160,7 +160,7 @@ LANG_MAP = {
 LANG_NATIVE_NAME = {
     'CHS': '中文(简体) 中国', 'CHT': '中文(繁體) 台湾', 'ZHH': '中文(香港) 香港',
     'ZHI': '中文(台湾) 台湾', 'ZHM': '中文(澳门) 澳门',
-    'ENG': 'English 美国', 'USA': 'English 美国', 'ENA': 'English 美国', 'ENC': 'English 英国',
+    'ENG': 'English 英国', 'USA': 'English 美国', 'ENA': 'English 美国', 'ENC': 'English 英国',
     'ENZ': 'English 新西兰', 'ENI': 'English 印度', 'ENS': 'English 新加坡',
     'GER': 'Deutsch 德国', 'DES': 'Deutsch 瑞士', 'DEA': 'Deutsch 奥地利', 'DEL': 'Deutsch 列支敦士登', 'DEC': 'Deutsch 卢森堡',
     'JPN': '日本語 日本', 'KOR': '한국어 韩国', 'FRA': 'Français 法国', 'FRB': 'Français 比利时',
@@ -2054,6 +2054,11 @@ class TranslationApp:
                 res_path = xml_file_path[:-4] + '.res'
             else:
                 res_path = xml_file_path + '.res'
+            
+            # 如果目标文件已存在，先删除以确保覆盖
+            if os.path.exists(res_path):
+                os.remove(res_path)
+                self.log(f"覆盖已存在的文件: {res_path}")
             
             # 写入文件
             with open(res_path, 'wb') as f_out:
