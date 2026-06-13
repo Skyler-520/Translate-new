@@ -24,6 +24,11 @@ import argparse
 import tempfile
 import logging
 import re
+import subprocess
+import shutil
+import ctypes
+import platform
+from PIL import Image, ImageTk
 
 # 语言映射字典 - 包含语言代码、名称和中文说明
 # 格式: {'语言缩写': {'code': 'Google翻译代码', 'name': '语言名称 (中文语言:中文国家)'}}
@@ -337,6 +342,10 @@ class TranslationApp:
         style.configure('StatLabel.TLabel', background='white', foreground='#8E8EA0', font=('Segoe UI', 9))
         style.configure('Accent.TButton', font=('Segoe UI', 10, 'bold'))
         style.configure('TButton', font=('Segoe UI', 9), padding=6)
+        style.configure('Tab.TButton', font=('Segoe UI', 9), padding=(12, 6), background='#E8E8F0', foreground='#6E6E73')
+        style.map('Tab.TButton', background=[('active', '#D0D0E0')])
+        style.configure('TabActive.TButton', font=('Segoe UI', 9, 'bold'), padding=(12, 6), background='#FFFFFF', foreground='#6C63FF')
+        style.map('TabActive.TButton', background=[('active', '#F5F5F7')])
         style.configure('TCheckbutton', background='#F5F6FA', font=('Segoe UI', 9))
         style.configure('TProgressbar', thickness=8, troughcolor='#E8E8F0', background='#6C63FF')
         style.configure('Card.TLabelframe', background='white')
@@ -357,6 +366,7 @@ class TranslationApp:
         nav_items = [
             ("📁", "文件管理", "files"),
             ("🌐", "语言选择", "langs"),
+            ("🖼️", "Logo设置", "logo"),
             ("📊", "处理进度", "progress"),
             ("📝", "处理日志", "logs"),
             ("⚙️", "设置选项", "settings")
@@ -367,12 +377,28 @@ class TranslationApp:
             btn_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
             btn_frame.pack(fill='x', padx=12, pady=2)
             
-            lbl = ttk.Label(btn_frame, text=f"{icon}  {text}", style='Nav.TLabel',
-                           cursor='hand2')
-            lbl.pack(fill='x', pady=8, padx=12)
-            lbl.bind('<Enter>', lambda e, l=lbl: l.configure(style='NavActive.TLabel'))
-            lbl.bind('<Leave>', lambda e, l=lbl: l.configure(style='Nav.TLabel'))
+            nav_btn_frame = ttk.Frame(btn_frame, style='Sidebar.TFrame')
+            nav_btn_frame.pack(fill='x', pady=8, padx=12)
+            
+            icon_lbl = ttk.Label(nav_btn_frame, text=icon, style='Nav.TLabel', 
+                                cursor='hand2', width=2)
+            icon_lbl.pack(side='left', padx=(0, 8))
+            
+            text_lbl = ttk.Label(nav_btn_frame, text=text, style='Nav.TLabel',
+                                cursor='hand2')
+            text_lbl.pack(side='left')
+            
+            def bind_events(widget, label):
+                widget.bind('<Enter>', lambda e, l=label: l.configure(style='NavActive.TLabel'))
+                widget.bind('<Leave>', lambda e, l=label: l.configure(style='Nav.TLabel'))
+            
+            bind_events(icon_lbl, icon_lbl)
+            bind_events(text_lbl, text_lbl)
+            
+            nav_btn_frame.bind('<Button-1>', lambda e, n=name: self.show_content(n))
             self.nav_buttons[name] = btn_frame
+        
+        self.current_content = None
         
         ttk.Frame(sidebar, style='Sidebar.TFrame').pack(side='bottom', fill='x', pady=20)
         
@@ -397,11 +423,13 @@ class TranslationApp:
         self.confirm_btn = ttk.Button(action_frame, text="✓ 确认生成", command=self.confirm_and_generate, state='disabled')
         self.confirm_btn.pack(side='left', padx=4)
         
+        ttk.Button(action_frame, text="修改LOGO并创建快捷方式", command=lambda: self.switch_tab('logo')).pack(side='left', padx=4)
+        
         content_area = ttk.Frame(main_content, style='TFrame')
         content_area.grid(row=1, column=0, sticky='nsew')
         content_area.grid_columnconfigure(0, weight=3)
         content_area.grid_columnconfigure(1, weight=1)
-        content_area.grid_rowconfigure(1, weight=1)
+        content_area.grid_rowconfigure(2, weight=1)
         
         files_card = ttk.LabelFrame(content_area, text=" 📂 输入源文件 ", style='Card.TLabelframe', padding=12)
         files_card.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 12))
@@ -439,10 +467,36 @@ class TranslationApp:
         file_scrollbar.pack(side='right', fill='y')
         self.file_listbox.configure(yscrollcommand=file_scrollbar.set)
         
-        lang_card = ttk.LabelFrame(content_area, text=" 🌍 目标语言 ", style='Card.TLabelframe', padding=12)
-        lang_card.grid(row=1, column=0, sticky='nsew', padx=(0, 6))
+        self.tab_frame = ttk.Frame(content_area, style='Card.TFrame')
+        self.tab_frame.grid(row=1, column=0, sticky='nsew', padx=(0, 6))
+        self.tab_frame.grid_rowconfigure(1, weight=1)
+        self.tab_frame.grid_columnconfigure(0, weight=1)
         
-        lang_toolbar = ttk.Frame(lang_card, style='Card.TFrame')
+        self.tab_buttons = ttk.Frame(self.tab_frame, style='Card.TFrame')
+        self.tab_buttons.grid(row=0, column=0, sticky='ew')
+        
+        self.lang_tab_btn = ttk.Button(self.tab_buttons, text="🌍 目标语言", 
+                                       command=lambda: self.switch_tab('langs'),
+                                       style='Tab.TButton')
+        self.lang_tab_btn.pack(side='left', padx=2)
+        
+        self.logo_tab_btn = ttk.Button(self.tab_buttons, text="🖼️ Logo设置", 
+                                       command=lambda: self.switch_tab('logo'),
+                                       style='Tab.TButton')
+        self.logo_tab_btn.pack(side='left', padx=2)
+        
+        self.lang_card = ttk.LabelFrame(self.tab_frame, text=" 目标语言 ", style='Card.TLabelframe', padding=12)
+        self.lang_card.grid(row=1, column=0, sticky='nsew')
+        self.lang_card.grid_rowconfigure(1, weight=1)
+        
+        self.logo_card = ttk.LabelFrame(self.tab_frame, text=" Logo和快捷方式设置 ", style='Card.TLabelframe', padding=12)
+        self.logo_card.grid(row=1, column=0, sticky='nsew')
+        self.logo_card.grid_rowconfigure(1, weight=1)
+        self.logo_card.grid_remove()
+        
+        self.current_tab = 'langs'
+        
+        lang_toolbar = ttk.Frame(self.lang_card, style='Card.TFrame')
         lang_toolbar.grid(row=0, column=0, sticky='ew', pady=(0, 8))
         
         self.lang_show_var = tk.BooleanVar(value=self.show_all_langs)
@@ -490,9 +544,9 @@ class TranslationApp:
         ttk.Button(btn_frame, text="全选", command=self.select_all_langs).pack(side='left', padx=2)
         ttk.Button(btn_frame, text="清空", command=self.deselect_all_langs).pack(side='left', padx=2)
         
-        lang_canvas_frame = ttk.Frame(lang_card, style='Card.TFrame')
+        lang_canvas_frame = ttk.Frame(self.lang_card, style='Card.TFrame')
         lang_canvas_frame.grid(row=1, column=0, sticky='nsew')
-        lang_card.grid_rowconfigure(1, weight=1)
+        self.lang_card.grid_rowconfigure(1, weight=1)
         
         canvas = tk.Canvas(lang_canvas_frame, bg='white', highlightthickness=0, width=340, height=260)
         scrollbar_y = ttk.Scrollbar(lang_canvas_frame, orient='vertical', command=canvas.yview)
@@ -600,7 +654,92 @@ class TranslationApp:
                   font=('Segoe UI', 9), foreground='#8E8EA0', background='white',
                   justify='left').pack(anchor='w', pady=(4, 0))
         
+        self.init_logo_settings()
+        
         self.update_lang_display()
+    
+    def show_content(self, name):
+        if name == 'logo':
+            self.switch_tab('logo')
+        elif name == 'langs':
+            self.switch_tab('langs')
+    
+    def switch_tab(self, tab_name):
+        if self.current_tab == tab_name:
+            return
+        
+        if self.current_tab == 'langs':
+            self.lang_card.grid_remove()
+        elif self.current_tab == 'logo':
+            self.logo_card.grid_remove()
+        
+        if tab_name == 'langs':
+            self.lang_card.grid(row=1, column=0, sticky='nsew')
+            self.lang_tab_btn.configure(style='TabActive.TButton')
+            self.logo_tab_btn.configure(style='Tab.TButton')
+        elif tab_name == 'logo':
+            self.logo_card.grid(row=1, column=0, sticky='nsew')
+            self.lang_tab_btn.configure(style='Tab.TButton')
+            self.logo_tab_btn.configure(style='TabActive.TButton')
+        
+        self.current_tab = tab_name
+    
+    def init_logo_settings(self):
+        self.logo_image_path = None
+        
+        logo_main = ttk.Frame(self.logo_card, style='Card.TFrame')
+        logo_main.pack(fill='both', expand=True, padx=8, pady=8)
+        
+        title_label = ttk.Label(logo_main, text="轻松转换图片格式并创建桌面快捷方式", 
+                               font=('Segoe UI', 10), foreground='#6e6e73')
+        title_label.pack(anchor='w', pady=(0, 12))
+        
+        select_frame = ttk.Frame(logo_main, style='Card.TFrame')
+        select_frame.pack(fill='x', pady=(0, 12))
+        
+        ttk.Label(select_frame, text="1. 选择图片:", font=('Segoe UI', 10, 'bold')).pack(anchor='w', pady=(0, 4))
+        
+        self.logo_file_label = ttk.Label(select_frame, text="未选择文件", font=('Segoe UI', 11), foreground='#6e6e73')
+        self.logo_file_label.pack(side='left', padx=(0, 8))
+        
+        ttk.Button(select_frame, text="选择图片", command=self.select_logo_image).pack(side='left')
+        
+        settings_frame = ttk.Frame(logo_main, style='Card.TFrame')
+        settings_frame.pack(fill='x', pady=(0, 12))
+        
+        ttk.Label(settings_frame, text="2. 转换设置:", font=('Segoe UI', 10, 'bold')).pack(anchor='w', pady=(0, 4))
+        
+        ttk.Label(settings_frame, text="公司名称:", font=('Segoe UI', 10)).pack(anchor='w', pady=(0, 2))
+        self.ico_filename_var = tk.StringVar(value="LOGO")
+        ico_entry = ttk.Entry(settings_frame, textvariable=self.ico_filename_var, width=20, font=('Segoe UI', 10))
+        ico_entry.pack(anchor='w')
+        
+        action_frame = ttk.Frame(logo_main, style='Card.TFrame')
+        action_frame.pack(fill='x', pady=(0, 12))
+        
+        ttk.Label(action_frame, text="3. 执行操作:", font=('Segoe UI', 10, 'bold')).pack(anchor='w', pady=(0, 4))
+        
+        button_frame = ttk.Frame(action_frame)
+        button_frame.pack(fill='x')
+        
+        self.logo_action_btn = ttk.Button(button_frame, text="修改LOGO并创建快捷方式", 
+                                          command=self.modify_logo_and_create_shortcut,
+                                          state='disabled')
+        self.logo_action_btn.pack(side='left', padx=(0, 8))
+        
+        ttk.Button(button_frame, text="仅转换图片", command=self.convert_logo_images).pack(side='left', padx=(0, 8))
+        ttk.Button(button_frame, text="仅创建快捷方式", command=self.create_shortcut_only).pack(side='left')
+        
+        status_frame = ttk.Frame(logo_main, style='Card.TFrame')
+        status_frame.pack(fill='x')
+        
+        self.logo_status_var = tk.StringVar(value="就绪")
+        status_label = ttk.Label(status_frame, textvariable=self.logo_status_var, 
+                                font=('Segoe UI', 11), foreground='#007AFF')
+        status_label.pack(anchor='w')
+        
+        self.logo_progress = ttk.Progressbar(status_frame, mode='indeterminate')
+        self.logo_progress.pack(fill='x', pady=(8, 0))
     
     def add_folder(self):
         folder = filedialog.askdirectory(title="选择输入文件夹")
@@ -2216,6 +2355,309 @@ class TranslationApp:
             messagebox.showinfo("完成", f"成功导入 {updated_count} 条翻译")
         except Exception as e:
             messagebox.showerror("错误", f"导入Excel失败: {str(e)}")
+
+    def is_admin(self):
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+
+    def run_as_admin(self):
+        if platform.system() != "Windows":
+            return False
+        
+        script = os.path.abspath(__file__)
+        params = ' '.join([f'"{arg}"' for arg in sys.argv[1:]])
+        
+        try:
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script}" {params}', None, 1)
+            return True
+        except Exception as e:
+            self.log(f"提权失败: {e}")
+            return False
+
+    def check_and_request_admin(self):
+        if not self.is_admin():
+            self.log("检测到需要管理员权限，正在请求提权...")
+            if self.run_as_admin():
+                self.log("程序将以管理员权限重新启动...")
+                sys.exit(0)
+            else:
+                self.log("提权失败，程序将继续以普通权限运行")
+                return False
+        return True
+
+    def validate_image(self, image_path):
+        try:
+            test_image = Image.open(image_path)
+            test_image.verify()
+            test_image.close()
+            return True
+        except Exception:
+            return False
+
+    def clear_icon_cache(self):
+        try:
+            user_profile = os.path.expandvars("%USERPROFILE%")
+            cache_paths = [
+                os.path.join(user_profile, "AppData", "Local", "IconCache.db"),
+                os.path.join(user_profile, "AppData", "Local", "Microsoft", "Windows", "Explorer"),
+            ]
+            
+            cache_cleared = False
+            
+            for cache_path in cache_paths:
+                if os.path.exists(cache_path):
+                    if os.path.isfile(cache_path):
+                        try:
+                            os.remove(cache_path)
+                            self.log(f"已删除图标缓存文件: {cache_path}")
+                            cache_cleared = True
+                        except Exception as e:
+                            self.log(f"无法删除图标缓存文件 {cache_path}: {e}")
+                    elif os.path.isdir(cache_path):
+                        try:
+                            import glob
+                            icon_cache_files = glob.glob(os.path.join(cache_path, "iconcache*.db"))
+                            for cache_file in icon_cache_files:
+                                try:
+                                    os.remove(cache_file)
+                                    self.log(f"已删除图标缓存文件: {cache_file}")
+                                    cache_cleared = True
+                                except Exception as e:
+                                    self.log(f"无法删除图标缓存文件 {cache_file}: {e}")
+                        except Exception as e:
+                            self.log(f"扫描图标缓存目录失败: {e}")
+            
+            if cache_cleared:
+                try:
+                    SHCNE_ASSOCCHANGED = 0x08000000
+                    SHCNF_IDLIST = 0x0000
+                    ctypes.windll.shell32.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None)
+                    self.log("已刷新图标缓存（无需重启资源管理器）")
+                    return True
+                except Exception as e:
+                    self.log(f"刷新图标缓存失败: {e}")
+                    return True
+            else:
+                self.log("未找到需要清理的图标缓存文件")
+                return True
+        except Exception as e:
+            self.log(f"清理图标缓存时出错: {e}")
+            return False
+
+    def select_logo_image(self):
+        file_types = [
+            ("图片文件", "*.png *.jpg *.jpeg *.bmp *.gif *.tiff *.ico"),
+            ("所有文件", "*.*")
+        ]
+        
+        filename = filedialog.askopenfilename(
+            title="选择图片文件",
+            filetypes=file_types
+        )
+        
+        if filename:
+            self.logo_image_path = filename
+            self.logo_file_label.config(text=os.path.basename(filename))
+            self.logo_action_btn.config(state='normal')
+            self.logo_status_var.set(f"已选择: {os.path.basename(filename)}")
+
+    def convert_logo_images(self):
+        if not self.logo_image_path:
+            messagebox.showwarning("警告", "请先选择图片文件")
+            return
+        
+        try:
+            self.logo_progress.start()
+            self.logo_status_var.set("正在转换图片...")
+            self.root.update()
+            
+            target_dir = os.path.join(self.output_dir, "OpenCNC", "Bin", "Logo")
+            os.makedirs(target_dir, exist_ok=True)
+            
+            original_image = Image.open(self.logo_image_path)
+            
+            ico_filename = self.ico_filename_var.get().strip() or "LOGO"
+            ico_path = os.path.join(target_dir, f"{ico_filename}.ico")
+            
+            ico_image = original_image.resize((128, 128), Image.Resampling.LANCZOS)
+            
+            if ico_image.mode == 'RGBA':
+                pass
+            elif ico_image.mode == 'LA':
+                ico_image = ico_image.convert('RGBA')
+            elif ico_image.mode != 'RGB':
+                ico_image = ico_image.convert('RGBA')
+            
+            ico_image.save(ico_path, format='ICO')
+            
+            gif_image = original_image.resize((75, 94), Image.Resampling.LANCZOS)
+            gif_path = os.path.join(target_dir, "LoadingImage.gif")
+            
+            if gif_image.mode == 'RGBA':
+                pass
+            elif gif_image.mode == 'LA':
+                gif_image = gif_image.convert('RGBA')
+            elif gif_image.mode != 'RGB':
+                gif_image = gif_image.convert('RGBA')
+            
+            gif_image.save(gif_path, format="GIF")
+            
+            ico_valid = self.validate_image(ico_path)
+            gif_valid = self.validate_image(gif_path)
+            
+            self.logo_progress.stop()
+            
+            if ico_valid and gif_valid:
+                messagebox.showinfo("成功", f"图片转换完成！\n文件已保存到: {target_dir}")
+                self.logo_status_var.set("转换完成")
+                self.log(f"Logo图片转换完成: {ico_path}, {gif_path}")
+            else:
+                messagebox.showwarning("警告", "文件已生成，但验证时发现可能存在问题")
+                self.logo_status_var.set("转换完成（有警告）")
+                
+        except Exception as e:
+            self.logo_progress.stop()
+            messagebox.showerror("错误", f"转换失败: {str(e)}")
+            self.logo_status_var.set("转换失败")
+            self.log(f"Logo转换失败: {e}")
+
+    def modify_logo_and_create_shortcut(self):
+        if not self.logo_image_path:
+            messagebox.showwarning("警告", "请先选择图片文件")
+            return
+        
+        try:
+            self.logo_progress.start()
+            self.logo_status_var.set("正在转换图片格式...")
+            self.root.update()
+            
+            target_dir = os.path.join(self.output_dir, "OpenCNC", "Bin", "Logo")
+            os.makedirs(target_dir, exist_ok=True)
+            
+            original_image = Image.open(self.logo_image_path)
+            
+            ico_filename = self.ico_filename_var.get().strip() or "LOGO"
+            ico_path = os.path.join(target_dir, f"{ico_filename}.ico")
+            
+            ico_image = original_image.resize((128, 128), Image.Resampling.LANCZOS)
+            
+            if ico_image.mode == 'RGBA':
+                pass
+            elif ico_image.mode == 'LA':
+                ico_image = ico_image.convert('RGBA')
+            elif ico_image.mode != 'RGB':
+                ico_image = ico_image.convert('RGBA')
+            
+            ico_image.save(ico_path, format='ICO')
+            
+            gif_image = original_image.resize((75, 94), Image.Resampling.LANCZOS)
+            gif_path = os.path.join(target_dir, "LoadingImage.gif")
+            
+            if gif_image.mode == 'RGBA':
+                pass
+            elif gif_image.mode == 'LA':
+                gif_image = gif_image.convert('RGBA')
+            elif gif_image.mode != 'RGB':
+                gif_image = gif_image.convert('RGBA')
+            
+            gif_image.save(gif_path, format="GIF")
+            
+            ico_valid = self.validate_image(ico_path)
+            gif_valid = self.validate_image(gif_path)
+            
+            if not (ico_valid and gif_valid):
+                messagebox.showwarning("警告", "图片转换完成，但验证时发现可能存在问题")
+            
+            self.logo_status_var.set("正在创建桌面快捷方式...")
+            self.root.update()
+            
+            exe_path = os.path.join(self.output_dir, "OpenCNC", "Bin", "SyntecLaserMarking.exe")
+            
+            if not os.path.exists(exe_path):
+                messagebox.showerror("错误", f"可执行文件不存在: {exe_path}\n\n请先通过「DiskC工作流」设置正确的DiskC根目录")
+                self.logo_progress.stop()
+                return
+            
+            self.logo_status_var.set("正在刷新图标缓存...")
+            self.root.update()
+            self.clear_icon_cache()
+            
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            vbs_script = os.path.join(script_dir, "快速设定logo和快捷方式", "create_shortcut.vbs")
+            
+            if os.path.exists(vbs_script):
+                bin_dir = os.path.join(self.output_dir, "OpenCNC", "Bin")
+                company_name = self.ico_filename_var.get().strip() or ""
+                # 传递: exePath, workingDir, iconFilename, companyName
+                result = subprocess.run([
+                    "cscript", "//Nologo", vbs_script,
+                    exe_path, bin_dir, ico_filename, company_name
+                ], capture_output=True, text=True)
+                
+                self.logo_progress.stop()
+                
+                if result.returncode == 0:
+                    messagebox.showinfo("成功", "LOGO修改完成！桌面快捷方式创建成功！图标缓存已刷新。")
+                    self.logo_status_var.set("LOGO修改和快捷方式创建成功")
+                    self.log("Logo和快捷方式创建成功")
+                else:
+                    messagebox.showerror("错误", f"创建快捷方式失败: {result.stderr}")
+                    self.logo_status_var.set("快捷方式创建失败")
+            else:
+                self.logo_progress.stop()
+                messagebox.showerror("错误", f"VBScript脚本文件不存在: {vbs_script}")
+                
+        except Exception as e:
+            self.logo_progress.stop()
+            messagebox.showerror("错误", f"操作失败: {str(e)}")
+            self.logo_status_var.set("操作失败")
+            self.log(f"Logo和快捷方式操作失败: {e}")
+
+    def create_shortcut_only(self):
+        try:
+            exe_path = os.path.join(self.output_dir, "OpenCNC", "Bin", "SyntecLaserMarking.exe")
+            ico_filename = self.ico_filename_var.get().strip() or "LOGO"
+            ico_path = os.path.join(self.output_dir, "OpenCNC", "Bin", "Logo", f"{ico_filename}.ico")
+            
+            if not os.path.exists(exe_path):
+                messagebox.showerror("错误", f"可执行文件不存在: {exe_path}\n\n请先通过「DiskC工作流」设置正确的DiskC根目录")
+                return
+            
+            if not os.path.exists(ico_path):
+                messagebox.showwarning("警告", "请先转换图片生成logo.ico文件")
+                return
+            
+            self.logo_status_var.set("正在清理图标缓存...")
+            self.root.update()
+            self.clear_icon_cache()
+            
+            vbs_script = os.path.join(script_dir, "快速设定logo和快捷方式", "create_shortcut.vbs")
+            
+            if os.path.exists(vbs_script):
+                bin_dir = os.path.join(self.output_dir, "OpenCNC", "Bin")
+                company_name = self.ico_filename_var.get().strip() or ""
+                # 传递: exePath, workingDir, iconFilename, companyName
+                result = subprocess.run([
+                    "cscript", "//Nologo", vbs_script,
+                    exe_path, bin_dir, ico_filename, company_name
+                ], capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    messagebox.showinfo("成功", "桌面快捷方式创建成功！图标缓存已刷新。")
+                    self.logo_status_var.set("快捷方式创建成功")
+                    self.log("快捷方式创建成功")
+                else:
+                    messagebox.showerror("错误", f"创建快捷方式失败: {result.stderr}")
+                    self.logo_status_var.set("快捷方式创建失败")
+            else:
+                messagebox.showerror("错误", f"VBScript脚本文件不存在: {vbs_script}")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"创建快捷方式时出错: {str(e)}")
+            self.logo_status_var.set("快捷方式创建失败")
+            self.log(f"创建快捷方式失败: {e}")
 
 
 if __name__ == '__main__':
